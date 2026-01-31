@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, User } from '../lib/supabase'
-import { Users, UserPlus, Shield, Mail, Lock, Loader2, Check, X, Trash2 } from 'lucide-react'
+import { Users, UserPlus, Shield, Mail, Lock, Loader2, Check, Trash2 } from 'lucide-react'
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([])
@@ -253,3 +253,4 @@ export default function UserManagement() {
     </div>
   )
 }
+
