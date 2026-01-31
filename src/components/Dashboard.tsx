@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react'
-import { ShopifyOrder, Transaction } from '../lib/supabase'
+import { useState, useMemo, useEffect } from 'react'
+import { ShopifyOrder, Transaction, supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
   DollarSign, TrendingUp, TrendingDown, ShoppingCart, Calendar,
   ArrowUpRight, ArrowDownRight, Filter, BarChart3,
-  TrendingUp as LineIcon, Mail, RefreshCw
+  TrendingUp as LineIcon, Mail, RefreshCw, X, Plus, Send
 } from 'lucide-react'
 import { 
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
@@ -23,8 +23,42 @@ type TimeRange = '7d' | '30d' | '90d' | 'all'
 export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   const { hasPermission } = useAuth()
   const [chartType, setChartType] = useState<ChartType>('area')
-  const [timeRange, setTimeRange] = useState<TimeRange>('7d')
+  const [timeRange, setTimeRange] = useState<TimeRange>('30d')
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailRecipients, setEmailRecipients] = useState<string[]>([])
+  const [newEmail, setNewEmail] = useState('')
+
+  // Load saved email recipients
+  useEffect(() => {
+    loadEmailRecipients()
+  }, [])
+
+  async function loadEmailRecipients() {
+    const { data } = await supabase
+      .from('email_recipients')
+      .select('email')
+      .order('created_at', { ascending: true })
+    
+    if (data) {
+      setEmailRecipients(data.map(r => r.email))
+    }
+  }
+
+  async function addEmailRecipient() {
+    if (!newEmail || !newEmail.includes('@')) return
+    
+    const { error } = await supabase.from('email_recipients').insert({ email: newEmail })
+    if (!error) {
+      setEmailRecipients([...emailRecipients, newEmail])
+      setNewEmail('')
+    }
+  }
+
+  async function removeEmailRecipient(email: string) {
+    await supabase.from('email_recipients').delete().eq('email', email)
+    setEmailRecipients(emailRecipients.filter(e => e !== email))
+  }
 
   // Filter data by time range
   const filteredOrders = useMemo(() => {
@@ -135,13 +169,14 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
   // Send summary email via n8n
   const sendSummaryEmail = async () => {
-    if (!hasPermission('canSendEmails')) return
+    if (!hasPermission('canSendEmails') || emailRecipients.length === 0) return
     setSendingEmail(true)
     try {
       await fetch('https://timelessconcept.app.n8n.cloud/webhook/finance-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          recipients: emailRecipients,
           date: today,
           totalRevenue,
           totalExpenses,
@@ -150,7 +185,8 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
           topProducts: [...new Set(filteredOrders.map(o => o.product_title))].slice(0, 5)
         })
       })
-      alert('Summary email sent!')
+      alert('Summary email sent to ' + emailRecipients.length + ' recipients!')
+      setShowEmailModal(false)
     } catch {
       alert('Failed to send email')
     }
@@ -225,18 +261,72 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
             <RefreshCw size={16} /> Refresh
           </button>
           {hasPermission('canSendEmails') && (
-            <button onClick={sendSummaryEmail} disabled={sendingEmail} className="neu-btn px-4 py-2 flex items-center gap-2 text-sm disabled:opacity-50">
-              <Mail size={16} /> {sendingEmail ? 'Sending...' : 'Email Summary'}
+            <button onClick={() => setShowEmailModal(true)} className="neu-btn px-4 py-2 flex items-center gap-2 text-sm">
+              <Mail size={16} /> Email Summary
             </button>
           )}
         </div>
       </div>
 
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="neu-card p-6 w-full max-w-md fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-[#2D3748]">Email Summary</h2>
+              <button onClick={() => setShowEmailModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Add email */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="Add email recipient..."
+                className="neu-input flex-1 px-4 py-2 text-sm"
+                onKeyDown={e => e.key === 'Enter' && addEmailRecipient()}
+              />
+              <button onClick={addEmailRecipient} className="neu-btn-accent px-3 py-2">
+                <Plus size={18} />
+              </button>
+            </div>
+
+            {/* Recipients list */}
+            <div className="max-h-40 overflow-y-auto mb-4 space-y-2">
+              {emailRecipients.map(email => (
+                <div key={email} className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                  <span className="text-sm text-gray-600">{email}</span>
+                  <button onClick={() => removeEmailRecipient(email)} className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600">
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+              {emailRecipients.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No recipients added yet</p>
+              )}
+            </div>
+
+            {/* Send button */}
+            <button
+              onClick={sendSummaryEmail}
+              disabled={sendingEmail || emailRecipients.length === 0}
+              className="neu-btn w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {sendingEmail ? 'Sending...' : <><Send size={18} /> Send Summary</>}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="flex items-center gap-2 neu-flat px-4 py-2 rounded-xl">
           <Filter size={16} className="text-gray-500" />
-          <select value={timeRange} onChange={e => setTimeRange(e.target.value as TimeRange)} className="bg-transparent text-sm font-medium focus:outline-none">
+          <span className="text-sm font-bold text-gray-600">Period:</span>
+          <select value={timeRange} onChange={e => setTimeRange(e.target.value as TimeRange)} className="bg-transparent text-sm font-bold focus:outline-none text-[#9370DB]">
             <option value="7d">Last 7 days</option>
             <option value="30d">Last 30 days</option>
             <option value="90d">Last 90 days</option>
@@ -249,11 +339,11 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         <div className="neu-card p-5 relative overflow-hidden">
           <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Total Revenue</p>
-              <p className="text-2xl font-bold text-[#2D3748]">{formatCurrency(totalRevenue)}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-gray-500 mb-1">Total Revenue</p>
+              <p className="text-2xl font-bold text-[#2D3748] truncate">{formatCurrency(totalRevenue)}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl icon-primary flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl icon-primary flex items-center justify-center flex-shrink-0">
               <DollarSign className="text-white" size={22} />
             </div>
           </div>
@@ -262,11 +352,11 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
         <div className="neu-card p-5 relative overflow-hidden">
           <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Total Expenses</p>
-              <p className="text-2xl font-bold text-[#2D3748]">{formatCurrency(totalExpenses)}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-gray-500 mb-1">Total Expenses</p>
+              <p className="text-2xl font-bold text-[#2D3748] truncate">{formatCurrency(totalExpenses)}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl icon-accent flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl icon-accent flex items-center justify-center flex-shrink-0">
               <TrendingDown className="text-white" size={22} />
             </div>
           </div>
@@ -275,12 +365,12 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
         <div className="neu-card p-5 relative overflow-hidden">
           <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Net Profit</p>
-              <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(netProfit)}</p>
-              <p className="text-xs text-gray-400 mt-1">{profitMargin}% margin</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-gray-500 mb-1">Net Profit</p>
+              <p className={`text-2xl font-bold truncate ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(netProfit)}</p>
+              <p className="text-xs font-semibold text-gray-400 mt-1">{profitMargin}% margin</p>
             </div>
-            <div className={`w-12 h-12 rounded-2xl ${netProfit >= 0 ? 'icon-green' : 'icon-red'} flex items-center justify-center`}>
+            <div className={`w-12 h-12 rounded-2xl ${netProfit >= 0 ? 'icon-green' : 'icon-red'} flex items-center justify-center flex-shrink-0`}>
               <TrendingUp className="text-white" size={22} />
             </div>
           </div>
@@ -288,12 +378,12 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
         <div className="neu-card p-5 relative overflow-hidden">
           <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Total Orders</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-gray-500 mb-1">Total Orders</p>
               <p className="text-2xl font-bold text-[#2D3748]">{filteredOrders.length}</p>
-              <p className="text-xs text-gray-400 mt-1">Avg: {formatCurrency(filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0)}</p>
+              <p className="text-xs font-semibold text-gray-400 mt-1">Avg: {formatCurrency(filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0)}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl icon-primary flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl icon-primary flex items-center justify-center flex-shrink-0">
               <ShoppingCart className="text-white" size={22} />
             </div>
           </div>
@@ -307,19 +397,19 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-4">
             <Calendar size={20} />
-            <span className="font-semibold text-lg">Today's Performance</span>
+            <span className="font-bold text-lg">Today's Performance</span>
             {parseInt(revenueChange) !== 0 && (
-              <span className={`ml-auto flex items-center gap-1 text-sm ${parseInt(revenueChange) > 0 ? 'text-green-200' : 'text-red-200'}`}>
+              <span className={`ml-auto flex items-center gap-1 text-sm font-semibold ${parseInt(revenueChange) > 0 ? 'text-green-200' : 'text-red-200'}`}>
                 {parseInt(revenueChange) > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
                 {Math.abs(parseInt(revenueChange))}% vs yesterday
               </span>
             )}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div><p className="text-white/70 text-sm">Orders</p><p className="text-3xl font-bold">{todayOrders.length}</p></div>
-            <div><p className="text-white/70 text-sm">Revenue</p><p className="text-3xl font-bold">{formatCurrency(todayRevenue)}</p></div>
-            <div><p className="text-white/70 text-sm">Avg. Order</p><p className="text-3xl font-bold">{formatCurrency(todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0)}</p></div>
-            <div><p className="text-white/70 text-sm">Paid</p><p className="text-3xl font-bold">{todayOrders.filter(o => o.payment_status === 'paid').length}/{todayOrders.length}</p></div>
+            <div><p className="text-white/70 text-sm font-semibold">Orders</p><p className="text-3xl font-bold">{todayOrders.length}</p></div>
+            <div><p className="text-white/70 text-sm font-semibold">Revenue</p><p className="text-3xl font-bold">{formatCurrency(todayRevenue)}</p></div>
+            <div><p className="text-white/70 text-sm font-semibold">Avg. Order</p><p className="text-3xl font-bold">{formatCurrency(todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0)}</p></div>
+            <div><p className="text-white/70 text-sm font-semibold">Paid</p><p className="text-3xl font-bold">{todayOrders.filter(o => o.payment_status === 'paid').length}/{todayOrders.length}</p></div>
           </div>
         </div>
       </div>
@@ -329,7 +419,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
         {/* Main Chart */}
         <div className="neu-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-[#2D3748]">Revenue vs Expenses</h2>
+            <h2 className="text-lg font-bold text-[#2D3748]">Revenue vs Expenses</h2>
             <div className="flex gap-1">
               <button onClick={() => setChartType('area')} className={`p-2 rounded-lg ${chartType === 'area' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><TrendingUp size={18} /></button>
               <button onClick={() => setChartType('bar')} className={`p-2 rounded-lg ${chartType === 'bar' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><BarChart3 size={18} /></button>
@@ -343,7 +433,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
         {/* Payment Methods */}
         <div className="neu-card p-6">
-          <h2 className="text-lg font-semibold text-[#2D3748] mb-4">Revenue by Payment Method</h2>
+          <h2 className="text-lg font-bold text-[#2D3748] mb-4">Revenue by Payment Method</h2>
           {paymentData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -358,7 +448,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
                 {paymentData.map((item, i) => (
                   <div key={item.name} className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-sm text-gray-600">{item.name}</span>
+                    <span className="text-sm font-medium text-gray-600">{item.name}</span>
                   </div>
                 ))}
               </div>
@@ -368,7 +458,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
         {/* Expenses by Category */}
         <div className="neu-card p-6">
-          <h2 className="text-lg font-semibold text-[#2D3748] mb-4">Expenses by Category</h2>
+          <h2 className="text-lg font-bold text-[#2D3748] mb-4">Expenses by Category</h2>
           {expenseData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={expenseData} layout="vertical">
@@ -384,21 +474,21 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
         {/* Recent Orders */}
         <div className="neu-card p-6">
-          <h2 className="text-lg font-semibold text-[#2D3748] mb-4">Recent Orders</h2>
+          <h2 className="text-lg font-bold text-[#2D3748] mb-4">Recent Orders</h2>
           <div className="space-y-3 max-h-[280px] overflow-y-auto">
             {orders.slice(0, 6).map(order => (
               <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center flex-shrink-0">
                     <ShoppingCart size={18} className="text-[#9370DB]" />
                   </div>
-                  <div>
-                    <p className="font-medium text-[#2D3748]">#{order.shopify_order_number}</p>
-                    <p className="text-sm text-gray-500 truncate max-w-[150px]">{order.customer_name}</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[#2D3748]">#{order.shopify_order_number}</p>
+                    <p className="text-sm text-gray-500 truncate">{order.customer_name}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-[#2D3748]">{formatCurrency(order.total_amount)}</p>
+                <div className="text-right flex-shrink-0 ml-2">
+                  <p className="font-bold text-[#2D3748]">{formatCurrency(order.total_amount)}</p>
                   <span className={`badge ${order.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}`}>{order.payment_status}</span>
                 </div>
               </div>
