@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
-  Search, Send, Phone, MoreVertical, ArrowLeft, User, Bot, 
-  MessageCircle, Clock, CheckCheck, Filter, RefreshCw, Smile,
-  Paperclip, Mic, X, Circle, AlertCircle
+  Search, Send, ArrowLeft, User, Bot, 
+  MessageCircle, CheckCheck, RefreshCw, Smile,
+  X, AlertCircle, UserCheck, Cpu
 } from 'lucide-react'
 
 interface Conversation {
@@ -51,7 +51,6 @@ export default function ChatInbox() {
   useEffect(() => {
     loadConversations()
     
-    // Subscribe to realtime updates
     const conversationsChannel = supabase
       .channel('conversations_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
@@ -68,7 +67,6 @@ export default function ChatInbox() {
     if (selectedConversation) {
       loadMessages(selectedConversation.id)
       
-      // Subscribe to messages for selected conversation
       const messagesChannel = supabase
         .channel(`messages_${selectedConversation.id}`)
         .on('postgres_changes', { 
@@ -101,7 +99,6 @@ export default function ChatInbox() {
       .limit(100)
     
     if (data && !error) {
-      // Get last message for each conversation
       const conversationsWithLastMessage = await Promise.all(
         data.map(async (conv) => {
           const { data: msgData } = await supabase
@@ -139,7 +136,6 @@ export default function ChatInbox() {
     const messageContent = newMessage.trim()
     setNewMessage('')
 
-    // Insert message as staff
     const { error } = await supabase.from('messages').insert({
       conversation_id: selectedConversation.id,
       sender: 'staff',
@@ -147,7 +143,6 @@ export default function ChatInbox() {
     })
 
     if (!error) {
-      // Update conversation last_message_at
       await supabase
         .from('conversations')
         .update({ 
@@ -156,7 +151,6 @@ export default function ChatInbox() {
         })
         .eq('id', selectedConversation.id)
 
-      // Optionally send to n8n for AI processing or external messaging
       try {
         await fetch('https://timelessconcept.app.n8n.cloud/webhook/samui-chat', {
           method: 'POST',
@@ -178,15 +172,55 @@ export default function ChatInbox() {
     setSending(false)
   }
 
-  async function updateConversationStatus(convId: string, status: string) {
+  // Take Over - Human takes control
+  async function takeOver(convId: string) {
     await supabase
       .from('conversations')
-      .update({ status, assigned_staff: user?.id })
+      .update({ status: 'human_active', assigned_staff: user?.id })
       .eq('id', convId)
     
     loadConversations()
     if (selectedConversation?.id === convId) {
-      setSelectedConversation(prev => prev ? { ...prev, status: status as any } : null)
+      setSelectedConversation(prev => prev ? { ...prev, status: 'human_active' } : null)
+    }
+  }
+
+  // Give to Bot - Return to AI
+  async function giveToBot(convId: string) {
+    await supabase
+      .from('conversations')
+      .update({ status: 'active', assigned_staff: null })
+      .eq('id', convId)
+    
+    loadConversations()
+    if (selectedConversation?.id === convId) {
+      setSelectedConversation(prev => prev ? { ...prev, status: 'active' } : null)
+    }
+  }
+
+  // Close conversation
+  async function closeConversation(convId: string) {
+    await supabase
+      .from('conversations')
+      .update({ status: 'closed' })
+      .eq('id', convId)
+    
+    loadConversations()
+    if (selectedConversation?.id === convId) {
+      setSelectedConversation(prev => prev ? { ...prev, status: 'closed' } : null)
+    }
+  }
+
+  // Reopen conversation
+  async function reopenConversation(convId: string) {
+    await supabase
+      .from('conversations')
+      .update({ status: 'active' })
+      .eq('id', convId)
+    
+    loadConversations()
+    if (selectedConversation?.id === convId) {
+      setSelectedConversation(prev => prev ? { ...prev, status: 'active' } : null)
     }
   }
 
@@ -248,48 +282,55 @@ export default function ChatInbox() {
     <div className="fade-in h-[calc(100vh-120px)] lg:h-[calc(100vh-64px)]">
       <div className="neu-card h-full overflow-hidden flex">
         {/* Conversations List - Left Panel */}
-        <div className={`w-full lg:w-96 flex-shrink-0 border-r border-gray-100 flex flex-col ${showMobileChat ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`w-full lg:w-[380px] flex-shrink-0 border-r border-gray-100/50 flex flex-col bg-gradient-to-br from-white/80 to-[#F0EDF8]/80 ${showMobileChat ? 'hidden lg:flex' : 'flex'}`}>
           {/* Header */}
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold gradient-text">Chat Inbox</h1>
+          <div className="p-5 border-b border-gray-100/50">
+            <div className="flex items-center justify-between mb-5">
+              <h1 className="text-2xl font-bold gradient-text">Chat Inbox</h1>
               <div className="flex items-center gap-2">
                 {needsAttentionCount > 0 && (
-                  <span className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-600 rounded-lg text-xs font-semibold">
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-red-500 to-red-400 text-white rounded-xl text-xs font-bold shadow-md">
                     <AlertCircle size={14} /> {needsAttentionCount}
                   </span>
                 )}
-                <button onClick={loadConversations} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <button onClick={loadConversations} className="neu-flat p-2.5 rounded-xl hover:bg-white/50 transition-all">
                   <RefreshCw size={18} className="text-gray-500" />
                 </button>
               </div>
             </div>
             
             {/* Search */}
-            <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <div className="relative mb-4">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
                 placeholder="Search conversations..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="neu-input w-full pl-10 pr-4 py-2.5 text-sm"
+                className="neu-input w-full pl-11 pr-4 py-3 text-sm"
               />
             </div>
 
             {/* Status Filter */}
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {['', 'needs_human', 'active', 'human_active', 'closed'].map(status => (
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {[
+                { value: '', label: 'All', icon: null },
+                { value: 'needs_human', label: 'Needs Help', icon: '🔴' },
+                { value: 'active', label: 'Bot', icon: '🤖' },
+                { value: 'human_active', label: 'Human', icon: '👤' },
+                { value: 'closed', label: 'Closed', icon: '✓' }
+              ].map(filter => (
                 <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                    statusFilter === status 
-                      ? 'bg-[#9370DB] text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  key={filter.value}
+                  onClick={() => setStatusFilter(filter.value)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    statusFilter === filter.value 
+                      ? 'neu-btn text-white shadow-lg' 
+                      : 'neu-flat text-gray-600 hover:bg-white/70'
                   }`}
                 >
-                  {status === '' ? 'All' : status === 'needs_human' ? '🔴 Needs Help' : status === 'active' ? '🤖 Bot' : status === 'human_active' ? '👤 Human' : '✓ Closed'}
+                  {filter.icon && <span className="mr-1">{filter.icon}</span>}
+                  {filter.label}
                 </button>
               ))}
             </div>
@@ -299,56 +340,81 @@ export default function ChatInbox() {
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center h-32">
-                <div className="spinner w-8 h-8"></div>
+                <div className="spinner w-10 h-10"></div>
               </div>
             ) : filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-                <MessageCircle size={32} className="mb-2 opacity-50" />
-                <p className="text-sm">No conversations found</p>
+              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center mb-3">
+                  <MessageCircle size={28} className="text-[#9370DB]" />
+                </div>
+                <p className="text-sm font-medium">No conversations found</p>
               </div>
             ) : (
               filteredConversations.map(conv => (
                 <div
                   key={conv.id}
-                  onClick={() => {
-                    setSelectedConversation(conv)
-                    setShowMobileChat(true)
-                  }}
-                  className={`p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 ${
-                    selectedConversation?.id === conv.id ? 'bg-[#9370DB]/10 border-l-4 border-l-[#9370DB]' : ''
+                  className={`p-4 border-b border-gray-100/30 cursor-pointer transition-all hover:bg-white/60 ${
+                    selectedConversation?.id === conv.id ? 'bg-gradient-to-r from-[#9370DB]/15 to-[#00CED1]/10 border-l-4 border-l-[#9370DB]' : ''
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Avatar */}
+                  <div onClick={() => { setSelectedConversation(conv); setShowMobileChat(true) }} className="flex items-start gap-3">
+                    {/* Avatar - Circular */}
                     <div className="relative flex-shrink-0">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#9370DB]/30 to-[#00CED1]/30 flex items-center justify-center">
-                        <span className="text-lg">{getPlatformIcon(conv.platform)}</span>
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#9370DB]/30 to-[#00CED1]/30 flex items-center justify-center shadow-md">
+                        <span className="text-xl">{getPlatformIcon(conv.platform)}</span>
                       </div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conv.status)}`}></div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conv.status)} shadow-sm`}></div>
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-[#2D3748] truncate">
+                        <h3 className="font-bold text-[#2D3748] truncate">
                           {conv.customer_name || conv.customer_phone || 'Unknown'}
                         </h3>
-                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                        <span className="text-xs text-gray-400 font-medium flex-shrink-0 ml-2">
                           {conv.last_message_at ? formatTime(conv.last_message_at) : ''}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 truncate">{conv.last_message}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      <p className="text-sm text-gray-500 truncate mb-2">{conv.last_message}</p>
+                      
+                      {/* Status + Action Buttons */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs px-2.5 py-1 rounded-lg font-bold ${
                           conv.status === 'needs_human' ? 'bg-red-100 text-red-600' :
                           conv.status === 'active' ? 'bg-green-100 text-green-600' :
                           conv.status === 'human_active' ? 'bg-blue-100 text-blue-600' :
                           'bg-gray-100 text-gray-500'
                         }`}>
-                          {conv.status === 'needs_human' ? 'Needs Help' : conv.status === 'human_active' ? 'In Progress' : conv.status}
+                          {conv.status === 'needs_human' ? '🔴 Needs Help' : 
+                           conv.status === 'active' ? '🤖 Bot' : 
+                           conv.status === 'human_active' ? '👤 Human' : '✓ Closed'}
                         </span>
+                        
+                        {/* Take Over / Give to Bot buttons */}
+                        {conv.status !== 'closed' && (
+                          <>
+                            {(conv.status === 'active' || conv.status === 'needs_human') && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); takeOver(conv.id) }}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-blue-500 to-blue-400 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow-md transition-all"
+                              >
+                                <UserCheck size={12} /> Take Over
+                              </button>
+                            )}
+                            {conv.status === 'human_active' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); giveToBot(conv.id) }}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-green-500 to-green-400 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow-md transition-all"
+                              >
+                                <Cpu size={12} /> Give to Bot
+                              </button>
+                            )}
+                          </>
+                        )}
+                        
                         {conv.booking_id && (
-                          <span className="text-xs text-[#9370DB]">#{conv.booking_id}</span>
+                          <span className="text-xs text-[#9370DB] font-semibold">#{conv.booking_id}</span>
                         )}
                       </div>
                     </div>
@@ -360,28 +426,29 @@ export default function ChatInbox() {
         </div>
 
         {/* Chat Panel - Right Panel */}
-        <div className={`flex-1 flex flex-col ${!showMobileChat ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`flex-1 flex flex-col bg-gradient-to-br from-white/50 to-[#E8E0F0]/50 ${!showMobileChat ? 'hidden lg:flex' : 'flex'}`}>
           {selectedConversation ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+              <div className="p-4 border-b border-gray-100/50 bg-white/70 backdrop-blur-sm flex items-center gap-3">
                 <button 
                   onClick={() => setShowMobileChat(false)}
-                  className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+                  className="lg:hidden neu-flat p-2 rounded-xl"
                 >
                   <ArrowLeft size={20} className="text-gray-600" />
                 </button>
                 
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#9370DB]/30 to-[#00CED1]/30 flex items-center justify-center">
-                  <span className="text-lg">{getPlatformIcon(selectedConversation.platform)}</span>
+                {/* Circular Avatar */}
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#9370DB]/30 to-[#00CED1]/30 flex items-center justify-center shadow-md">
+                  <span className="text-xl">{getPlatformIcon(selectedConversation.platform)}</span>
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-semibold text-[#2D3748] truncate">
+                  <h2 className="font-bold text-[#2D3748] truncate">
                     {selectedConversation.customer_name || selectedConversation.customer_phone || 'Unknown'}
                   </h2>
                   <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <span>{selectedConversation.customer_phone}</span>
+                    <span className="font-medium">{selectedConversation.customer_phone}</span>
                     {selectedConversation.customer_email && (
                       <>
                         <span>•</span>
@@ -391,30 +458,37 @@ export default function ChatInbox() {
                   </div>
                 </div>
 
-                {/* Status Actions */}
+                {/* Header Action Buttons */}
                 <div className="flex items-center gap-2">
-                  {selectedConversation.status !== 'closed' && (
+                  {selectedConversation.status !== 'closed' ? (
                     <>
-                      {selectedConversation.status === 'needs_human' && (
+                      {(selectedConversation.status === 'active' || selectedConversation.status === 'needs_human') && (
                         <button
-                          onClick={() => updateConversationStatus(selectedConversation.id, 'human_active')}
-                          className="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+                          onClick={() => takeOver(selectedConversation.id)}
+                          className="neu-btn px-4 py-2 flex items-center gap-2 text-sm"
                         >
-                          Take Over
+                          <UserCheck size={16} /> Take Over
+                        </button>
+                      )}
+                      {selectedConversation.status === 'human_active' && (
+                        <button
+                          onClick={() => giveToBot(selectedConversation.id)}
+                          className="neu-btn-accent px-4 py-2 flex items-center gap-2 text-sm"
+                        >
+                          <Cpu size={16} /> Give to Bot
                         </button>
                       )}
                       <button
-                        onClick={() => updateConversationStatus(selectedConversation.id, 'closed')}
-                        className="px-3 py-1.5 bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                        onClick={() => closeConversation(selectedConversation.id)}
+                        className="neu-flat px-4 py-2 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-100"
                       >
                         Close
                       </button>
                     </>
-                  )}
-                  {selectedConversation.status === 'closed' && (
+                  ) : (
                     <button
-                      onClick={() => updateConversationStatus(selectedConversation.id, 'active')}
-                      className="px-3 py-1.5 bg-green-500 text-white text-xs font-semibold rounded-lg hover:bg-green-600 transition-colors"
+                      onClick={() => reopenConversation(selectedConversation.id)}
+                      className="neu-btn-accent px-4 py-2 flex items-center gap-2 text-sm"
                     >
                       Reopen
                     </button>
@@ -424,8 +498,8 @@ export default function ChatInbox() {
 
               {/* Messages Area */}
               <div 
-                className="flex-1 overflow-y-auto p-4 space-y-3"
-                style={{ background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)' }}
+                className="flex-1 overflow-y-auto p-4 space-y-4"
+                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(232,224,240,0.5) 100%)' }}
               >
                 {messages.map((msg, idx) => {
                   const isStaff = msg.sender === 'staff'
@@ -438,31 +512,31 @@ export default function ChatInbox() {
                     <div key={msg.id}>
                       {showDate && (
                         <div className="flex justify-center my-4">
-                          <span className="px-3 py-1 bg-white/80 rounded-full text-xs text-gray-500 shadow-sm">
+                          <span className="px-4 py-1.5 neu-flat rounded-full text-xs text-gray-500 font-semibold">
                             {new Date(msg.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                           </span>
                         </div>
                       )}
                       <div className={`flex ${isCustomer ? 'justify-start' : 'justify-end'}`}>
-                        <div className={`max-w-[75%] ${isCustomer ? 'order-2' : 'order-1'}`}>
-                          <div className={`px-4 py-2.5 rounded-2xl shadow-sm ${
+                        <div className={`max-w-[75%]`}>
+                          <div className={`px-4 py-3 rounded-2xl shadow-md ${
                             isCustomer 
                               ? 'bg-white rounded-tl-sm' 
                               : isBot 
-                                ? 'bg-[#00CED1]/20 rounded-tr-sm' 
-                                : 'bg-[#9370DB] text-white rounded-tr-sm'
+                                ? 'bg-gradient-to-br from-[#00CED1]/30 to-[#00CED1]/20 rounded-tr-sm' 
+                                : 'bg-gradient-to-br from-[#9370DB] to-[#7B68EE] text-white rounded-tr-sm'
                           }`}>
                             {(isBot || isStaff) && (
-                              <div className={`flex items-center gap-1 text-xs mb-1 ${isStaff ? 'text-white/70' : 'text-[#00CED1]'}`}>
+                              <div className={`flex items-center gap-1.5 text-xs mb-1.5 font-bold ${isStaff ? 'text-white/80' : 'text-[#00CED1]'}`}>
                                 {isBot ? <Bot size={12} /> : <User size={12} />}
                                 <span>{isBot ? 'AI Assistant' : 'Staff'}</span>
                               </div>
                             )}
-                            <p className={`text-sm whitespace-pre-wrap ${isCustomer ? 'text-[#2D3748]' : isBot ? 'text-[#2D3748]' : ''}`}>
+                            <p className={`text-sm whitespace-pre-wrap leading-relaxed ${isCustomer ? 'text-[#2D3748]' : isBot ? 'text-[#2D3748]' : ''}`}>
                               {msg.content}
                             </p>
-                            <div className={`flex items-center justify-end gap-1 mt-1 ${isStaff ? 'text-white/60' : 'text-gray-400'}`}>
-                              <span className="text-xs">
+                            <div className={`flex items-center justify-end gap-1 mt-1.5 ${isStaff ? 'text-white/60' : 'text-gray-400'}`}>
+                              <span className="text-xs font-medium">
                                 {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                               </span>
                               {isStaff && <CheckCheck size={14} />}
@@ -478,8 +552,8 @@ export default function ChatInbox() {
 
               {/* Message Input */}
               {selectedConversation.status !== 'closed' && (
-                <div className="p-4 border-t border-gray-100 bg-white">
-                  <div className="flex items-end gap-2">
+                <div className="p-4 border-t border-gray-100/50 bg-white/80 backdrop-blur-sm">
+                  <div className="flex items-end gap-3">
                     <div className="flex-1 relative">
                       <textarea
                         value={newMessage}
@@ -493,16 +567,16 @@ export default function ChatInbox() {
                         placeholder="Type a message..."
                         className="neu-input w-full px-4 py-3 pr-12 text-sm resize-none"
                         rows={1}
-                        style={{ minHeight: '48px', maxHeight: '120px' }}
+                        style={{ minHeight: '50px', maxHeight: '120px' }}
                       />
-                      <button className="absolute right-3 bottom-3 text-gray-400 hover:text-gray-600">
-                        <Smile size={20} />
+                      <button className="absolute right-3 bottom-3 text-gray-400 hover:text-[#9370DB] transition-colors">
+                        <Smile size={22} />
                       </button>
                     </div>
                     <button
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || sending}
-                      className="neu-btn-accent p-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="neu-btn p-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {sending ? (
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -517,10 +591,10 @@ export default function ChatInbox() {
           ) : (
             /* No conversation selected */
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center mb-4">
-                <MessageCircle size={40} className="text-[#9370DB]" />
+              <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center mb-5 shadow-lg">
+                <MessageCircle size={48} className="text-[#9370DB]" />
               </div>
-              <h3 className="text-lg font-semibold text-[#2D3748] mb-1">Select a Conversation</h3>
+              <h3 className="text-xl font-bold text-[#2D3748] mb-2">Select a Conversation</h3>
               <p className="text-sm">Choose a chat from the list to start messaging</p>
             </div>
           )}
