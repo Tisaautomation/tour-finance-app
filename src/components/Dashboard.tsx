@@ -7,7 +7,7 @@ import {
   TrendingUp as LineIcon, Mail, RefreshCw, X, Plus, Send, Percent, Users
 } from 'lucide-react'
 import { 
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
+  Area, BarChart, Bar, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart
 } from 'recharts'
 
@@ -42,12 +42,10 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   const [productFilter, setProductFilter] = useState('')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('')
-  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('')
-
+  
   // Get unique values for filter dropdowns
   const products = useMemo(() => [...new Set(orders.map(o => o.product_title).filter(Boolean))].sort(), [orders])
   const paymentMethods = useMemo(() => [...new Set(orders.map(o => o.payment_method).filter(Boolean))].sort(), [orders])
-  const expenseCategories = useMemo(() => [...new Set(transactions.filter(t => t.type === 'expense').map(t => t.category).filter(Boolean))].sort(), [transactions])
 
   // Load saved email recipients
   useEffect(() => {
@@ -89,10 +87,9 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const matchesDate = (!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo)
-      const matchesCategory = !expenseCategoryFilter || t.category === expenseCategoryFilter
-      return matchesDate && matchesCategory
+      return matchesDate
     })
-  }, [transactions, dateFrom, dateTo, expenseCategoryFilter])
+  }, [transactions, dateFrom, dateTo])
 
   // Financial KPIs
   const grossIncome = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
@@ -735,3 +732,4 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
     </div>
   )
 }
+
