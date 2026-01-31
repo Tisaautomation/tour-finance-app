@@ -3,12 +3,12 @@ import { ShopifyOrder, Transaction, supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
   DollarSign, TrendingUp, TrendingDown, ShoppingCart, Calendar,
-  ArrowUpRight, ArrowDownRight, Filter, BarChart3,
-  TrendingUp as LineIcon, Mail, RefreshCw, X, Plus, Send
+  ArrowUpRight, ArrowDownRight, Filter, BarChart3, Download,
+  TrendingUp as LineIcon, Mail, RefreshCw, X, Plus, Send, Percent, Users
 } from 'lucide-react'
 import { 
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart
 } from 'recharts'
 
 interface Props {
@@ -18,16 +18,36 @@ interface Props {
 }
 
 type ChartType = 'area' | 'bar' | 'line'
-type TimeRange = '7d' | '30d' | '90d' | 'all'
+type ReportType = 'financial' | 'orders' | 'tours' | 'payments'
+
+const COLORS = ['#9370DB', '#00CED1', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
 
 export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   const { hasPermission } = useAuth()
   const [chartType, setChartType] = useState<ChartType>('area')
-  const [timeRange, setTimeRange] = useState<TimeRange>('30d')
+  const [reportType, setReportType] = useState<ReportType>('financial')
   const [sendingEmail, setSendingEmail] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [emailRecipients, setEmailRecipients] = useState<string[]>([])
   const [newEmail, setNewEmail] = useState('')
+  const [showFilters, setShowFilters] = useState(true)
+
+  // Filters
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().split('T')[0]
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0])
+  const [productFilter, setProductFilter] = useState('')
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('')
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('')
+
+  // Get unique values for filter dropdowns
+  const products = useMemo(() => [...new Set(orders.map(o => o.product_title).filter(Boolean))].sort(), [orders])
+  const paymentMethods = useMemo(() => [...new Set(orders.map(o => o.payment_method).filter(Boolean))].sort(), [orders])
+  const expenseCategories = useMemo(() => [...new Set(transactions.filter(t => t.type === 'expense').map(t => t.category).filter(Boolean))].sort(), [transactions])
 
   // Load saved email recipients
   useEffect(() => {
@@ -35,19 +55,12 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   }, [])
 
   async function loadEmailRecipients() {
-    const { data } = await supabase
-      .from('email_recipients')
-      .select('email')
-      .order('created_at', { ascending: true })
-    
-    if (data) {
-      setEmailRecipients(data.map(r => r.email))
-    }
+    const { data } = await supabase.from('email_recipients').select('email').order('created_at', { ascending: true })
+    if (data) setEmailRecipients(data.map(r => r.email))
   }
 
   async function addEmailRecipient() {
     if (!newEmail || !newEmail.includes('@')) return
-    
     const { error } = await supabase.from('email_recipients').insert({ email: newEmail })
     if (!error) {
       setEmailRecipients([...emailRecipients, newEmail])
@@ -60,88 +73,97 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
     setEmailRecipients(emailRecipients.filter(e => e !== email))
   }
 
-  // Filter data by time range
+  // Filter orders
   const filteredOrders = useMemo(() => {
-    const now = new Date()
-    const cutoff = new Date()
-    
-    switch(timeRange) {
-      case '7d': cutoff.setDate(now.getDate() - 7); break
-      case '30d': cutoff.setDate(now.getDate() - 30); break
-      case '90d': cutoff.setDate(now.getDate() - 90); break
-      default: cutoff.setTime(0)
-    }
-    
-    return orders.filter(o => new Date(o.received_at) >= cutoff)
-  }, [orders, timeRange])
+    return orders.filter(o => {
+      const orderDate = o.received_at?.split('T')[0]
+      const matchesDate = (!dateFrom || orderDate >= dateFrom) && (!dateTo || orderDate <= dateTo)
+      const matchesProduct = !productFilter || o.product_title === productFilter
+      const matchesPaymentMethod = !paymentMethodFilter || o.payment_method === paymentMethodFilter
+      const matchesPaymentStatus = !paymentStatusFilter || o.payment_status === paymentStatusFilter
+      return matchesDate && matchesProduct && matchesPaymentMethod && matchesPaymentStatus
+    })
+  }, [orders, dateFrom, dateTo, productFilter, paymentMethodFilter, paymentStatusFilter])
 
+  // Filter transactions
   const filteredTransactions = useMemo(() => {
-    const now = new Date()
-    const cutoff = new Date()
-    
-    switch(timeRange) {
-      case '7d': cutoff.setDate(now.getDate() - 7); break
-      case '30d': cutoff.setDate(now.getDate() - 30); break
-      case '90d': cutoff.setDate(now.getDate() - 90); break
-      default: cutoff.setTime(0)
-    }
-    
-    return transactions.filter(t => new Date(t.date) >= cutoff)
-  }, [transactions, timeRange])
+    return transactions.filter(t => {
+      const matchesDate = (!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo)
+      const matchesCategory = !expenseCategoryFilter || t.category === expenseCategoryFilter
+      return matchesDate && matchesCategory
+    })
+  }, [transactions, dateFrom, dateTo, expenseCategoryFilter])
 
-  // KPIs
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
+  // Financial KPIs
+  const grossIncome = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
   const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0)
-  const netProfit = totalRevenue - totalExpenses
-  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0'
-  
-  // Today's data
+  const totalRefunds = filteredTransactions.filter(t => t.type === 'refund').reduce((sum, t) => sum + Math.abs(t.amount), 0)
+  const netProfit = grossIncome - totalExpenses - totalRefunds
+  const profitMargin = grossIncome > 0 ? ((netProfit / grossIncome) * 100) : 0
+  const avgOrderValue = filteredOrders.length > 0 ? grossIncome / filteredOrders.length : 0
+  const totalPax = filteredOrders.reduce((sum, o) => sum + (o.adults || 0) + (o.children || 0), 0)
+
+  // Today's performance
   const today = new Date().toISOString().split('T')[0]
   const todayOrders = orders.filter(o => o.received_at?.startsWith(today))
   const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
-  const yesterdayOrders = orders.filter(o => {
-    const d = new Date()
-    d.setDate(d.getDate() - 1)
-    return o.received_at?.startsWith(d.toISOString().split('T')[0])
-  })
+  const yesterdayDate = new Date()
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+  const yesterday = yesterdayDate.toISOString().split('T')[0]
+  const yesterdayOrders = orders.filter(o => o.received_at?.startsWith(yesterday))
   const yesterdayRevenue = yesterdayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
-  const revenueChange = yesterdayRevenue > 0 ? (((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100).toFixed(0) : '0'
+  const revenueChange = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100 : 0
 
-  // Chart data by day
+  // Daily data for charts
   const dailyData = useMemo(() => {
-    const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 30
-    const data: Record<string, { revenue: number; expenses: number; orders: number }> = {}
+    const start = new Date(dateFrom)
+    const end = new Date(dateTo)
+    const days: Record<string, { date: string; income: number; expenses: number; netProfit: number; orders: number }> = {}
     
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const key = d.toISOString().split('T')[0]
-      data[key] = { revenue: 0, expenses: 0, orders: 0 }
+      days[key] = { date: key, income: 0, expenses: 0, netProfit: 0, orders: 0 }
     }
     
     filteredOrders.forEach(o => {
       const date = o.received_at?.split('T')[0]
-      if (date && data[date]) {
-        data[date].revenue += o.total_amount || 0
-        data[date].orders += 1
+      if (date && days[date]) {
+        days[date].income += o.total_amount || 0
+        days[date].orders += 1
       }
     })
     
     filteredTransactions.filter(t => t.type === 'expense').forEach(t => {
-      const date = t.date
-      if (date && data[date]) {
-        data[date].expenses += Math.abs(t.amount)
+      if (days[t.date]) {
+        days[t.date].expenses += Math.abs(t.amount)
       }
     })
     
-    return Object.entries(data).map(([date, values]) => ({
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      ...values
+    Object.values(days).forEach(day => {
+      day.netProfit = day.income - day.expenses
+    })
+    
+    return Object.values(days).map(d => ({
+      ...d,
+      dateLabel: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }))
-  }, [filteredOrders, filteredTransactions, timeRange])
+  }, [filteredOrders, filteredTransactions, dateFrom, dateTo])
 
-  // Payment methods pie
-  const paymentData = useMemo(() => {
+  // Tours sold data
+  const toursSoldData = useMemo(() => {
+    const tours: Record<string, { name: string; revenue: number; orders: number; pax: number }> = {}
+    filteredOrders.forEach(o => {
+      const name = o.product_title || 'Unknown Tour'
+      if (!tours[name]) tours[name] = { name, revenue: 0, orders: 0, pax: 0 }
+      tours[name].revenue += o.total_amount || 0
+      tours[name].orders += 1
+      tours[name].pax += (o.adults || 0) + (o.children || 0)
+    })
+    return Object.values(tours).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
+  }, [filteredOrders])
+
+  // Payment methods data
+  const paymentMethodsData = useMemo(() => {
     const methods: Record<string, number> = {}
     filteredOrders.forEach(o => {
       const method = o.payment_method || 'Other'
@@ -150,241 +172,382 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
     return Object.entries(methods).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
   }, [filteredOrders])
 
-  // Expense categories
-  const expenseData = useMemo(() => {
+  // Payment status data
+  const paymentStatusData = useMemo(() => {
+    const statuses: Record<string, { count: number; amount: number }> = {}
+    filteredOrders.forEach(o => {
+      const status = o.payment_status || 'unknown'
+      if (!statuses[status]) statuses[status] = { count: 0, amount: 0 }
+      statuses[status].count += 1
+      statuses[status].amount += o.total_amount || 0
+    })
+    return Object.entries(statuses).map(([name, data]) => ({ name, ...data }))
+  }, [filteredOrders])
+
+  // Expense categories data
+  const expensesByCategoryData = useMemo(() => {
     const cats: Record<string, number> = {}
     filteredTransactions.filter(t => t.type === 'expense').forEach(t => {
       const cat = t.category || 'Other'
       cats[cat] = (cats[cat] || 0) + Math.abs(t.amount)
     })
     return Object.entries(cats).map(([name, value]) => ({ 
-      name: name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+      name: name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
       value 
     })).sort((a, b) => b.value - a.value)
   }, [filteredTransactions])
 
-  const COLORS = ['#9370DB', '#00CED1', '#B19CD9', '#40E0D0', '#7B68EE', '#008B8B']
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(amount)
 
-  const formatCurrency = (n: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(n)
+  const formatNumber = (num: number) => new Intl.NumberFormat().format(Math.round(num))
 
-  // Send summary email via n8n
-  const sendSummaryEmail = async () => {
-    if (!hasPermission('canSendEmails') || emailRecipients.length === 0) return
+  // Export report
+  const exportReport = () => {
+    let csv = ''
+    const filename = `${reportType}-report-${dateFrom}-to-${dateTo}.csv`
+    
+    if (reportType === 'financial') {
+      csv = [
+        ['Financial Report', `${dateFrom} to ${dateTo}`],
+        [],
+        ['Metric', 'Value'],
+        ['Gross Income', grossIncome],
+        ['Total Expenses', totalExpenses],
+        ['Total Refunds', totalRefunds],
+        ['Net Profit', netProfit],
+        ['Profit Margin %', profitMargin.toFixed(1)],
+        ['Total Orders', filteredOrders.length],
+        ['Avg Order Value', avgOrderValue.toFixed(0)],
+        [],
+        ['Daily Breakdown'],
+        ['Date', 'Income', 'Expenses', 'Net Profit', 'Orders'],
+        ...dailyData.map(d => [d.date, d.income, d.expenses, d.netProfit, d.orders])
+      ].map(row => row.join(',')).join('\n')
+    } else if (reportType === 'tours') {
+      csv = [
+        ['Tours Sold Report', `${dateFrom} to ${dateTo}`],
+        [],
+        ['Tour', 'Revenue', 'Orders', 'Pax'],
+        ...toursSoldData.map(t => [t.name, t.revenue, t.orders, t.pax])
+      ].map(row => row.join(',')).join('\n')
+    } else if (reportType === 'payments') {
+      csv = [
+        ['Payment Methods Report', `${dateFrom} to ${dateTo}`],
+        [],
+        ['Payment Method', 'Total Amount'],
+        ...paymentMethodsData.map(p => [p.name, p.value]),
+        [],
+        ['Payment Status', 'Count', 'Amount'],
+        ...paymentStatusData.map(s => [s.name, s.count, s.amount])
+      ].map(row => row.join(',')).join('\n')
+    } else {
+      csv = [
+        ['Orders Report', `${dateFrom} to ${dateTo}`],
+        [],
+        ['Order #', 'Date', 'Customer', 'Product', 'Amount', 'Payment Method', 'Payment Status'],
+        ...filteredOrders.map(o => [o.shopify_order_number, o.received_at?.split('T')[0], o.customer_name, o.product_title, o.total_amount, o.payment_method, o.payment_status])
+      ].map(row => row.map(c => `"${c || ''}"`).join(',')).join('\n')
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = filename
+    a.click()
+  }
+
+  // Send email summary
+  async function sendEmailSummary() {
+    if (emailRecipients.length === 0) {
+      alert('Please add at least one email recipient')
+      return
+    }
+    
     setSendingEmail(true)
     try {
-      await fetch('https://timelessconcept.app.n8n.cloud/webhook/finance-summary', {
+      const response = await fetch('https://timelessconcept.app.n8n.cloud/webhook/finance-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipients: emailRecipients,
-          date: today,
-          totalRevenue,
-          totalExpenses,
-          netProfit,
-          ordersCount: filteredOrders.length,
-          topProducts: [...new Set(filteredOrders.map(o => o.product_title))].slice(0, 5)
+          dateRange: { from: dateFrom, to: dateTo },
+          summary: {
+            grossIncome, totalExpenses, netProfit, profitMargin: profitMargin.toFixed(1),
+            totalOrders: filteredOrders.length, avgOrderValue, totalPax,
+            topTours: toursSoldData.slice(0, 5),
+            paymentMethods: paymentMethodsData
+          }
         })
       })
-      alert('Summary email sent to ' + emailRecipients.length + ' recipients!')
+      if (response.ok) {
+        alert('Email summary sent successfully!')
+      } else {
+        alert('Failed to send email summary')
+      }
+    } catch (error) {
+      alert('Failed to send email summary')
+    } finally {
+      setSendingEmail(false)
       setShowEmailModal(false)
-    } catch {
-      alert('Failed to send email')
     }
-    setSendingEmail(false)
   }
 
-  // Render chart based on type
-  const renderChart = () => {
-    const commonProps = { data: dailyData }
+  // Quick date presets
+  const setDatePreset = (preset: string) => {
+    const today = new Date()
+    let from = new Date()
     
-    if (chartType === 'bar') {
-      return (
-        <BarChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-          <XAxis dataKey="date" stroke="#A0AEC0" fontSize={12} />
-          <YAxis stroke="#A0AEC0" fontSize={12} />
-          <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-          <Legend />
-          <Bar dataKey="revenue" name="Revenue" fill="#9370DB" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="expenses" name="Expenses" fill="#00CED1" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      )
+    switch (preset) {
+      case '7d': from.setDate(today.getDate() - 7); break
+      case '30d': from.setDate(today.getDate() - 30); break
+      case '90d': from.setDate(today.getDate() - 90); break
+      case 'mtd': from = new Date(today.getFullYear(), today.getMonth(), 1); break
+      case 'ytd': from = new Date(today.getFullYear(), 0, 1); break
+      case 'all': from = new Date(2020, 0, 1); break
     }
     
-    if (chartType === 'line') {
-      return (
-        <LineChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-          <XAxis dataKey="date" stroke="#A0AEC0" fontSize={12} />
-          <YAxis stroke="#A0AEC0" fontSize={12} />
-          <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-          <Legend />
-          <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#9370DB" strokeWidth={3} dot={{ fill: '#9370DB' }} />
-          <Line type="monotone" dataKey="expenses" name="Expenses" stroke="#00CED1" strokeWidth={3} dot={{ fill: '#00CED1' }} />
-        </LineChart>
-      )
-    }
-    
+    setDateFrom(from.toISOString().split('T')[0])
+    setDateTo(today.toISOString().split('T')[0])
+  }
+
+  // Render financial chart
+  const renderFinancialChart = () => {
     return (
-      <AreaChart {...commonProps}>
-        <defs>
-          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#9370DB" stopOpacity={0.4}/>
-            <stop offset="95%" stopColor="#9370DB" stopOpacity={0}/>
-          </linearGradient>
-          <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#00CED1" stopOpacity={0.4}/>
-            <stop offset="95%" stopColor="#00CED1" stopOpacity={0}/>
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-        <XAxis dataKey="date" stroke="#A0AEC0" fontSize={12} />
-        <YAxis stroke="#A0AEC0" fontSize={12} />
-        <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-        <Legend />
-        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#9370DB" strokeWidth={2} fill="url(#colorRev)" />
-        <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#00CED1" strokeWidth={2} fill="url(#colorExp)" />
-      </AreaChart>
+      <ResponsiveContainer width="100%" height={350}>
+        <ComposedChart data={dailyData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+          <XAxis dataKey="dateLabel" stroke="#A0AEC0" fontSize={11} />
+          <YAxis stroke="#A0AEC0" fontSize={11} tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} />
+          <Tooltip 
+            formatter={(v: number, name: string) => [formatCurrency(v), name]} 
+            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} 
+          />
+          <Legend />
+          {chartType === 'area' ? (
+            <>
+              <Area type="monotone" dataKey="income" name="Income" stroke="#9370DB" fill="#9370DB" fillOpacity={0.3} strokeWidth={2} />
+              <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#FF6B6B" fill="#FF6B6B" fillOpacity={0.3} strokeWidth={2} />
+              <Area type="monotone" dataKey="netProfit" name="Net Profit" stroke="#00CED1" fill="#00CED1" fillOpacity={0.3} strokeWidth={2} />
+            </>
+          ) : chartType === 'bar' ? (
+            <>
+              <Bar dataKey="income" name="Income" fill="#9370DB" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expenses" name="Expenses" fill="#FF6B6B" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="netProfit" name="Net Profit" fill="#00CED1" radius={[4, 4, 0, 0]} />
+            </>
+          ) : (
+            <>
+              <Line type="monotone" dataKey="income" name="Income" stroke="#9370DB" strokeWidth={3} dot={{ fill: '#9370DB', r: 4 }} />
+              <Line type="monotone" dataKey="expenses" name="Expenses" stroke="#FF6B6B" strokeWidth={3} dot={{ fill: '#FF6B6B', r: 4 }} />
+              <Line type="monotone" dataKey="netProfit" name="Net Profit" stroke="#00CED1" strokeWidth={3} dot={{ fill: '#00CED1', r: 4 }} />
+            </>
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
     )
   }
 
   return (
     <div className="fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold gradient-text">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Business overview & analytics</p>
+          <h1 className="text-3xl font-bold gradient-text">Financial Dashboard</h1>
+          <p className="text-gray-500 mt-1">Comprehensive business analytics & reporting</p>
         </div>
+        
         <div className="flex flex-wrap gap-2">
-          <button onClick={onRefresh} className="neu-btn-accent px-4 py-2 flex items-center gap-2 text-sm">
+          <button onClick={onRefresh} className="neu-flat px-4 py-2 flex items-center gap-2 text-sm text-gray-600">
             <RefreshCw size={16} /> Refresh
           </button>
+          <button onClick={() => setShowFilters(!showFilters)} className="neu-btn px-4 py-2 flex items-center gap-2 text-sm">
+            <Filter size={16} /> Filters
+          </button>
+          {hasPermission('canExport') && (
+            <button onClick={exportReport} className="neu-btn px-4 py-2 flex items-center gap-2 text-sm">
+              <Download size={16} /> Export
+            </button>
+          )}
           {hasPermission('canSendEmails') && (
-            <button onClick={() => setShowEmailModal(true)} className="neu-btn px-4 py-2 flex items-center gap-2 text-sm">
-              <Mail size={16} /> Email Summary
+            <button onClick={() => setShowEmailModal(true)} className="neu-btn-accent px-4 py-2 flex items-center gap-2 text-sm">
+              <Mail size={16} /> Email Report
             </button>
           )}
         </div>
       </div>
 
-      {/* Email Modal */}
-      {showEmailModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="neu-card p-6 w-full max-w-md fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-[#2D3748]">Email Summary</h2>
-              <button onClick={() => setShowEmailModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-            
-            {/* Add email */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="email"
-                value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
-                placeholder="Add email recipient..."
-                className="neu-input flex-1 px-4 py-2 text-sm"
-                onKeyDown={e => e.key === 'Enter' && addEmailRecipient()}
-              />
-              <button onClick={addEmailRecipient} className="neu-btn-accent px-3 py-2">
-                <Plus size={18} />
-              </button>
-            </div>
-
-            {/* Recipients list */}
-            <div className="max-h-40 overflow-y-auto mb-4 space-y-2">
-              {emailRecipients.map(email => (
-                <div key={email} className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
-                  <span className="text-sm text-gray-600">{email}</span>
-                  <button onClick={() => removeEmailRecipient(email)} className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600">
-                    <X size={16} />
-                  </button>
-                </div>
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="neu-card p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-[#2D3748] flex items-center gap-2">
+              <Filter size={18} /> Report Filters
+            </h3>
+            <div className="flex gap-1">
+              {['7d', '30d', '90d', 'MTD', 'YTD', 'All'].map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => setDatePreset(preset.toLowerCase())}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg hover:bg-[#9370DB]/10 hover:text-[#9370DB] transition-colors"
+                >
+                  {preset}
+                </button>
               ))}
-              {emailRecipients.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">No recipients added yet</p>
-              )}
             </div>
-
-            {/* Send button */}
-            <button
-              onClick={sendSummaryEmail}
-              disabled={sendingEmail || emailRecipients.length === 0}
-              className="neu-btn w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {sendingEmail ? 'Sending...' : <><Send size={18} /> Send Summary</>}
-            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">From Date</label>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neu-input w-full px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">To Date</label>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="neu-input w-full px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Product/Tour</label>
+              <select value={productFilter} onChange={e => setProductFilter(e.target.value)} className="neu-input w-full px-3 py-2 text-sm">
+                <option value="">All Tours</option>
+                {products.map(p => <option key={p} value={p!}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Payment Method</label>
+              <select value={paymentMethodFilter} onChange={e => setPaymentMethodFilter(e.target.value)} className="neu-input w-full px-3 py-2 text-sm">
+                <option value="">All Methods</option>
+                {paymentMethods.map(m => <option key={m} value={m!}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Payment Status</label>
+              <select value={paymentStatusFilter} onChange={e => setPaymentStatusFilter(e.target.value)} className="neu-input w-full px-3 py-2 text-sm">
+                <option value="">All Status</option>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Report Type</label>
+              <select value={reportType} onChange={e => setReportType(e.target.value as ReportType)} className="neu-input w-full px-3 py-2 text-sm">
+                <option value="financial">Financial Summary</option>
+                <option value="orders">Orders Detail</option>
+                <option value="tours">Tours Sold</option>
+                <option value="payments">Payment Analysis</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="flex items-center gap-2 neu-flat px-4 py-2 rounded-xl">
-          <Filter size={16} className="text-gray-500" />
-          <span className="text-sm font-bold text-gray-600">Period:</span>
-          <select value={timeRange} onChange={e => setTimeRange(e.target.value as TimeRange)} className="bg-transparent text-sm font-bold focus:outline-none text-[#9370DB]">
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="90d">Last 90 days</option>
-            <option value="all">All time</option>
-          </select>
+      {/* KPI Cards Row 1 - Main Financial */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="neu-card p-5 relative overflow-hidden">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Gross Income</p>
+              <p className="text-2xl font-bold text-[#9370DB]">{formatCurrency(grossIncome)}</p>
+              <p className="text-xs text-gray-400 mt-1">{filteredOrders.length} orders</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#9370DB] to-[#9370DB]/70 flex items-center justify-center">
+              <DollarSign className="text-white" size={20} />
+            </div>
+          </div>
+          <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-[#9370DB] opacity-10" />
+        </div>
+
+        <div className="neu-card p-5 relative overflow-hidden">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Total Expenses</p>
+              <p className="text-2xl font-bold text-[#FF6B6B]">{formatCurrency(totalExpenses)}</p>
+              <p className="text-xs text-gray-400 mt-1">+ ฿{formatNumber(totalRefunds)} refunds</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6B6B] to-[#FF6B6B]/70 flex items-center justify-center">
+              <TrendingDown className="text-white" size={20} />
+            </div>
+          </div>
+          <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-[#FF6B6B] opacity-10" />
+        </div>
+
+        <div className="neu-card p-5 relative overflow-hidden">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Net Profit</p>
+              <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-[#00CED1]' : 'text-[#FF6B6B]'}`}>{formatCurrency(netProfit)}</p>
+              <p className="text-xs text-gray-400 mt-1">{profitMargin >= 0 ? '+' : ''}{profitMargin.toFixed(1)}% margin</p>
+            </div>
+            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${netProfit >= 0 ? 'from-[#00CED1] to-[#00CED1]/70' : 'from-[#FF6B6B] to-[#FF6B6B]/70'} flex items-center justify-center`}>
+              <TrendingUp className="text-white" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5 relative overflow-hidden">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Profit Margin</p>
+              <p className={`text-2xl font-bold ${profitMargin >= 20 ? 'text-[#00CED1]' : profitMargin >= 0 ? 'text-yellow-500' : 'text-[#FF6B6B]'}`}>{profitMargin.toFixed(1)}%</p>
+              <p className="text-xs text-gray-400 mt-1">Target: 25%</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-gray-500 to-gray-400 flex items-center justify-center">
+              <Percent className="text-white" size={20} />
+            </div>
+          </div>
         </div>
       </div>
-      
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        <div className="neu-card p-5 relative overflow-hidden">
-          <div className="flex justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-gray-500 mb-1">Total Revenue</p>
-              <p className="text-2xl font-bold text-[#2D3748] truncate">{formatCurrency(totalRevenue)}</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl icon-primary flex items-center justify-center flex-shrink-0">
-              <DollarSign className="text-white" size={22} />
-            </div>
-          </div>
-          <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full bg-[#9370DB] opacity-10" />
-        </div>
 
-        <div className="neu-card p-5 relative overflow-hidden">
-          <div className="flex justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-gray-500 mb-1">Total Expenses</p>
-              <p className="text-2xl font-bold text-[#2D3748] truncate">{formatCurrency(totalExpenses)}</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl icon-accent flex items-center justify-center flex-shrink-0">
-              <TrendingDown className="text-white" size={22} />
-            </div>
-          </div>
-          <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full bg-[#00CED1] opacity-10" />
-        </div>
-
-        <div className="neu-card p-5 relative overflow-hidden">
-          <div className="flex justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-gray-500 mb-1">Net Profit</p>
-              <p className={`text-2xl font-bold truncate ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(netProfit)}</p>
-              <p className="text-xs font-semibold text-gray-400 mt-1">{profitMargin}% margin</p>
-            </div>
-            <div className={`w-12 h-12 rounded-2xl ${netProfit >= 0 ? 'icon-green' : 'icon-red'} flex items-center justify-center flex-shrink-0`}>
-              <TrendingUp className="text-white" size={22} />
-            </div>
-          </div>
-        </div>
-
-        <div className="neu-card p-5 relative overflow-hidden">
-          <div className="flex justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-gray-500 mb-1">Total Orders</p>
+      {/* KPI Cards Row 2 - Operations */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Total Orders</p>
               <p className="text-2xl font-bold text-[#2D3748]">{filteredOrders.length}</p>
-              <p className="text-xs font-semibold text-gray-400 mt-1">Avg: {formatCurrency(filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0)}</p>
+              <p className="text-xs text-gray-400 mt-1">Avg: {formatCurrency(avgOrderValue)}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl icon-primary flex items-center justify-center flex-shrink-0">
-              <ShoppingCart className="text-white" size={22} />
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center">
+              <ShoppingCart className="text-[#9370DB]" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Total Passengers</p>
+              <p className="text-2xl font-bold text-[#2D3748]">{formatNumber(totalPax)}</p>
+              <p className="text-xs text-gray-400 mt-1">{(totalPax / Math.max(filteredOrders.length, 1)).toFixed(1)} avg/order</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center">
+              <Users className="text-[#00CED1]" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Paid Orders</p>
+              <p className="text-2xl font-bold text-green-600">{filteredOrders.filter(o => o.payment_status === 'paid').length}</p>
+              <p className="text-xs text-gray-400 mt-1">{((filteredOrders.filter(o => o.payment_status === 'paid').length / Math.max(filteredOrders.length, 1)) * 100).toFixed(0)}% paid</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center">
+              <ArrowUpRight className="text-green-600" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Pending Payment</p>
+              <p className="text-2xl font-bold text-yellow-600">{filteredOrders.filter(o => o.payment_status !== 'paid').length}</p>
+              <p className="text-xs text-gray-400 mt-1">{formatCurrency(filteredOrders.filter(o => o.payment_status !== 'paid').reduce((s, o) => s + o.total_amount, 0))}</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-yellow-100 flex items-center justify-center">
+              <Calendar className="text-yellow-600" size={20} />
             </div>
           </div>
         </div>
@@ -398,10 +561,10 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
           <div className="flex items-center gap-2 mb-4">
             <Calendar size={20} />
             <span className="font-bold text-lg">Today's Performance</span>
-            {parseInt(revenueChange) !== 0 && (
-              <span className={`ml-auto flex items-center gap-1 text-sm font-semibold ${parseInt(revenueChange) > 0 ? 'text-green-200' : 'text-red-200'}`}>
-                {parseInt(revenueChange) > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                {Math.abs(parseInt(revenueChange))}% vs yesterday
+            {revenueChange !== 0 && (
+              <span className={`ml-auto flex items-center gap-1 text-sm font-semibold ${revenueChange > 0 ? 'text-green-200' : 'text-red-200'}`}>
+                {revenueChange > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                {Math.abs(revenueChange).toFixed(0)}% vs yesterday
               </span>
             )}
           </div>
@@ -409,94 +572,166 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
             <div><p className="text-white/70 text-sm font-semibold">Orders</p><p className="text-3xl font-bold">{todayOrders.length}</p></div>
             <div><p className="text-white/70 text-sm font-semibold">Revenue</p><p className="text-3xl font-bold">{formatCurrency(todayRevenue)}</p></div>
             <div><p className="text-white/70 text-sm font-semibold">Avg. Order</p><p className="text-3xl font-bold">{formatCurrency(todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0)}</p></div>
-            <div><p className="text-white/70 text-sm font-semibold">Paid</p><p className="text-3xl font-bold">{todayOrders.filter(o => o.payment_status === 'paid').length}/{todayOrders.length}</p></div>
+            <div><p className="text-white/70 text-sm font-semibold">Collection Rate</p><p className="text-3xl font-bold">{todayOrders.length > 0 ? ((todayOrders.filter(o => o.payment_status === 'paid').length / todayOrders.length) * 100).toFixed(0) : 0}%</p></div>
           </div>
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Main Chart */}
-        <div className="neu-card p-6">
+      {/* Main Charts */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        {/* Financial Trend Chart */}
+        <div className="neu-card p-6 xl:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-[#2D3748]">Revenue vs Expenses</h2>
+            <h2 className="text-lg font-bold text-[#2D3748]">Income vs Expenses vs Net Profit</h2>
             <div className="flex gap-1">
-              <button onClick={() => setChartType('area')} className={`p-2 rounded-lg ${chartType === 'area' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><TrendingUp size={18} /></button>
-              <button onClick={() => setChartType('bar')} className={`p-2 rounded-lg ${chartType === 'bar' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><BarChart3 size={18} /></button>
-              <button onClick={() => setChartType('line')} className={`p-2 rounded-lg ${chartType === 'line' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><LineIcon size={18} /></button>
+              <button onClick={() => setChartType('area')} className={`p-2 rounded-lg transition-colors ${chartType === 'area' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><TrendingUp size={18} /></button>
+              <button onClick={() => setChartType('bar')} className={`p-2 rounded-lg transition-colors ${chartType === 'bar' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><BarChart3 size={18} /></button>
+              <button onClick={() => setChartType('line')} className={`p-2 rounded-lg transition-colors ${chartType === 'line' ? 'bg-[#9370DB]/20 text-[#9370DB]' : 'text-gray-400 hover:bg-gray-100'}`}><LineIcon size={18} /></button>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            {renderChart()}
-          </ResponsiveContainer>
+          {renderFinancialChart()}
+        </div>
+
+        {/* Tours Sold */}
+        <div className="neu-card p-6">
+          <h2 className="text-lg font-bold text-[#2D3748] mb-4">Top Tours by Revenue</h2>
+          {toursSoldData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={toursSoldData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
+                <XAxis type="number" stroke="#A0AEC0" fontSize={11} tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} />
+                <YAxis dataKey="name" type="category" stroke="#A0AEC0" fontSize={10} width={120} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none' }} />
+                <Bar dataKey="revenue" fill="#9370DB" radius={[0, 8, 8, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <div className="flex items-center justify-center h-[300px] text-gray-400">No tour data</div>}
         </div>
 
         {/* Payment Methods */}
         <div className="neu-card p-6">
           <h2 className="text-lg font-bold text-[#2D3748] mb-4">Revenue by Payment Method</h2>
-          {paymentData.length > 0 ? (
+          {paymentMethodsData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
-                  <Pie data={paymentData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="value">
-                    {paymentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie data={paymentMethodsData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value">
+                    {paymentMethodsData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 12, border: 'none' }} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap gap-3 justify-center mt-2">
-                {paymentData.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-sm font-medium text-gray-600">{item.name}</span>
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {paymentMethodsData.map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-1.5 text-xs">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="font-medium text-gray-600">{item.name}</span>
                   </div>
                 ))}
               </div>
             </>
-          ) : <div className="flex items-center justify-center h-[250px] text-gray-400">No data</div>}
+          ) : <div className="flex items-center justify-center h-[280px] text-gray-400">No payment data</div>}
         </div>
 
         {/* Expenses by Category */}
         <div className="neu-card p-6">
           <h2 className="text-lg font-bold text-[#2D3748] mb-4">Expenses by Category</h2>
-          {expenseData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={expenseData} layout="vertical">
+          {expensesByCategoryData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={expensesByCategoryData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
-                <XAxis type="number" stroke="#A0AEC0" fontSize={12} />
-                <YAxis dataKey="name" type="category" stroke="#A0AEC0" fontSize={12} width={100} />
-                <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 12, border: 'none' }} />
-                <Bar dataKey="value" fill="#00CED1" radius={[0, 8, 8, 0]} />
+                <XAxis type="number" stroke="#A0AEC0" fontSize={11} tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} />
+                <YAxis dataKey="name" type="category" stroke="#A0AEC0" fontSize={10} width={100} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none' }} />
+                <Bar dataKey="value" fill="#FF6B6B" radius={[0, 8, 8, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          ) : <div className="flex items-center justify-center h-[280px] text-gray-400">No expenses recorded</div>}
+          ) : <div className="flex items-center justify-center h-[300px] text-gray-400">No expense data</div>}
         </div>
 
-        {/* Recent Orders */}
+        {/* Payment Status Breakdown */}
         <div className="neu-card p-6">
-          <h2 className="text-lg font-bold text-[#2D3748] mb-4">Recent Orders</h2>
-          <div className="space-y-3 max-h-[280px] overflow-y-auto">
-            {orders.slice(0, 6).map(order => (
-              <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#9370DB]/20 to-[#00CED1]/20 flex items-center justify-center flex-shrink-0">
-                    <ShoppingCart size={18} className="text-[#9370DB]" />
+          <h2 className="text-lg font-bold text-[#2D3748] mb-4">Payment Status Summary</h2>
+          <div className="space-y-4">
+            {paymentStatusData.map(status => {
+              const percentage = (status.count / Math.max(filteredOrders.length, 1)) * 100
+              const color = status.name === 'paid' ? '#00CED1' : status.name === 'pending' ? '#FBBF24' : '#A0AEC0'
+              return (
+                <div key={status.name}>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-sm font-semibold text-gray-600 capitalize">{status.name}</span>
+                    <span className="text-sm font-bold text-gray-800">{status.count} orders ({formatCurrency(status.amount)})</span>
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[#2D3748]">#{order.shopify_order_number}</p>
-                    <p className="text-sm text-gray-500 truncate">{order.customer_name}</p>
+                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: color }} />
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0 ml-2">
-                  <p className="font-bold text-[#2D3748]">{formatCurrency(order.total_amount)}</p>
-                  <span className={`badge ${order.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}`}>{order.payment_status}</span>
-                </div>
-              </div>
-            ))}
-            {orders.length === 0 && <div className="text-center py-8 text-gray-400"><ShoppingCart size={40} className="mx-auto mb-2 opacity-30" /><p>No orders yet</p></div>}
+              )
+            })}
+          </div>
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-gray-600">Collection Rate</span>
+              <span className="font-bold text-[#00CED1]">
+                {((filteredOrders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + o.total_amount, 0) / Math.max(grossIncome, 1)) * 100).toFixed(1)}%
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="neu-card p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-[#2D3748]">Email Report</h3>
+              <button onClick={() => setShowEmailModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-500 mb-4">Send financial summary to recipients</p>
+            
+            <div className="flex gap-2 mb-4">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="Add email address"
+                className="neu-input flex-1 px-4 py-2 text-sm"
+                onKeyPress={e => e.key === 'Enter' && addEmailRecipient()}
+              />
+              <button onClick={addEmailRecipient} className="neu-btn px-4 py-2">
+                <Plus size={18} />
+              </button>
+            </div>
+            
+            <div className="space-y-2 max-h-40 overflow-y-auto mb-4">
+              {emailRecipients.map(email => (
+                <div key={email} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-700">{email}</span>
+                  <button onClick={() => removeEmailRecipient(email)} className="p-1 text-gray-400 hover:text-red-500">
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+              {emailRecipients.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No recipients added</p>
+              )}
+            </div>
+            
+            <button
+              onClick={sendEmailSummary}
+              disabled={sendingEmail || emailRecipients.length === 0}
+              className="neu-btn-accent w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {sendingEmail ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />}
+              {sendingEmail ? 'Sending...' : 'Send Report'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
