@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Transaction } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Search, Download, ArrowUpRight, ArrowDownRight, Receipt, FileText, Share2 } from 'lucide-react'
+import { Search, Download, ArrowUpRight, ArrowDownRight, Receipt } from 'lucide-react'
 
 interface Props { transactions: Transaction[] }
 
