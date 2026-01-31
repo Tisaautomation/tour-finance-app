@@ -1,72 +1,74 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-
-    const result = await login(email, password)
     
-    if (result.error) {
-      setError(result.error)
+    const success = await login(email, password)
+    
+    if (!success) {
+      setError('Invalid email or account not active')
     }
     setLoading(false)
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(145deg, #E8EEF5 0%, #F0F4F8 50%, #E4EAF1 100%)' }}>
-      <div className="neu-card p-8 sm:p-12 w-full max-w-md">
+      <div className="neu-card p-8 w-full max-w-md fade-in">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/images/compass.png" alt="TIK" className="w-20 h-20 mb-4" />
-          <h1 className="text-2xl font-bold gradient-text">Tour in Koh Samui</h1>
-          <p className="text-gray-500 text-sm mt-1">Finance Dashboard</p>
+          <div className="logo-circle mb-4" style={{ width: '80px', height: '80px', padding: '12px' }}>
+            <img src="/images/compass.png" alt="SATP" />
+          </div>
+          <h1 className="text-2xl font-bold gradient-text">SATP Group</h1>
+          <p className="text-gray-400 text-sm mt-1">Finance Dashboard</p>
         </div>
 
-        {/* Error Alert */}
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-red-50 border border-red-200 text-red-700">
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 flex items-center gap-3 text-red-600">
             <AlertCircle size={20} />
             <span className="text-sm font-medium">{error}</span>
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+            <label className="block text-sm font-bold text-gray-600 mb-2">Email</label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="neu-input w-full pl-12 pr-4 py-4"
+                className="neu-input w-full pl-11 pr-4 py-3.5"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+            <label className="block text-sm font-bold text-gray-600 mb-2">Password</label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="neu-input w-full pl-12 pr-4 py-4"
+                className="neu-input w-full pl-11 pr-4 py-3.5"
                 required
               />
             </div>
@@ -75,11 +77,11 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="neu-btn w-full py-4 text-white font-semibold text-lg flex items-center justify-center gap-2 disabled:opacity-50"
+            className="neu-btn w-full py-4 flex items-center justify-center gap-2 text-lg disabled:opacity-50"
           >
             {loading ? (
               <>
-                <Loader2 size={20} className="animate-spin" />
+                <Loader2 className="animate-spin" size={20} />
                 Signing in...
               </>
             ) : (
@@ -88,9 +90,8 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-gray-400 mt-8">
-          © 2026 Tour in Koh Samui. All rights reserved.
+        <p className="text-center text-xs text-gray-400 mt-6">
+          © 2026 SATP Group. All rights reserved.
         </p>
       </div>
     </div>
