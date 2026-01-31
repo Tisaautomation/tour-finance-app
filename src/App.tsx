@@ -6,11 +6,12 @@ import Dashboard from './components/Dashboard'
 import OrdersTable from './components/OrdersTable'
 import ExpenseForm from './components/ExpenseForm'
 import TransactionsTable from './components/TransactionsTable'
+import UserManagement from './components/UserManagement'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users
 } from 'lucide-react'
 
-type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense'
+type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users'
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -55,6 +56,7 @@ function AppContent() {
     { id: 'orders', label: 'Orders', icon: ShoppingCart, permission: 'canViewOrders' },
     { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
+    { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
@@ -62,7 +64,9 @@ function AppContent() {
       {/* Mobile header */}
       <div className="lg:hidden neu-card m-4 p-4 flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <img src="/images/compass.png" alt="SATP" className="w-10 h-10" />
+          <div className="logo-circle-sm">
+            <img src="/images/compass.png" alt="SATP" />
+          </div>
           <span className="font-bold gradient-text">SATP Finance</span>
         </div>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-xl hover:bg-gray-100">
@@ -82,7 +86,9 @@ function AppContent() {
           <div className="neu-card h-full p-6 flex flex-col">
             {/* Logo */}
             <div className="hidden lg:flex items-center gap-3 mb-8">
-              <img src="/images/compass.png" alt="SATP" className="w-12 h-12" />
+              <div className="logo-circle">
+                <img src="/images/compass.png" alt="SATP" />
+              </div>
               <div>
                 <h1 className="text-lg font-bold gradient-text">SATP Group</h1>
                 <p className="text-xs text-gray-400">Finance Dashboard</p>
@@ -135,6 +141,7 @@ function AppContent() {
               {view === 'orders' && <OrdersTable orders={orders} />}
               {view === 'transactions' && <TransactionsTable transactions={transactions} />}
               {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
+              {view === 'users' && <UserManagement />}
             </>
           )}
         </main>
