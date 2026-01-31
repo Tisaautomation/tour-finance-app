@@ -62,7 +62,7 @@ function AppContent() {
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(145deg, #E8EEF5 0%, #F0F4F8 50%, #E4EAF1 100%)' }}>
+    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
       {/* Mobile header */}
       <div className="lg:hidden neu-card m-4 p-4 flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
