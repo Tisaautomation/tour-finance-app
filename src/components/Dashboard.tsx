@@ -3,8 +3,8 @@ import { ShopifyOrder, Transaction } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
   DollarSign, TrendingUp, TrendingDown, ShoppingCart, Calendar,
-  ArrowUpRight, ArrowDownRight, Filter, BarChart3, PieChart as PieIcon, 
-  TrendingUp as LineIcon, Download, Mail, RefreshCw
+  ArrowUpRight, ArrowDownRight, Filter, BarChart3,
+  TrendingUp as LineIcon, Mail, RefreshCw
 } from 'lucide-react'
 import { 
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
@@ -29,13 +29,13 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   // Filter data by time range
   const filteredOrders = useMemo(() => {
     const now = new Date()
-    let cutoff = new Date()
+    const cutoff = new Date()
     
     switch(timeRange) {
       case '7d': cutoff.setDate(now.getDate() - 7); break
       case '30d': cutoff.setDate(now.getDate() - 30); break
       case '90d': cutoff.setDate(now.getDate() - 90); break
-      default: cutoff = new Date(0)
+      default: cutoff.setTime(0)
     }
     
     return orders.filter(o => new Date(o.received_at) >= cutoff)
@@ -43,13 +43,13 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
 
   const filteredTransactions = useMemo(() => {
     const now = new Date()
-    let cutoff = new Date()
+    const cutoff = new Date()
     
     switch(timeRange) {
       case '7d': cutoff.setDate(now.getDate() - 7); break
       case '30d': cutoff.setDate(now.getDate() - 30); break
       case '90d': cutoff.setDate(now.getDate() - 90); break
-      default: cutoff = new Date(0)
+      default: cutoff.setTime(0)
     }
     
     return transactions.filter(t => new Date(t.date) >= cutoff)
@@ -151,7 +151,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
         })
       })
       alert('Summary email sent!')
-    } catch (err) {
+    } catch {
       alert('Failed to send email')
     }
     setSendingEmail(false)
