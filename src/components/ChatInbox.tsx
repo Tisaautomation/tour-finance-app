@@ -309,14 +309,12 @@ export default function ChatInbox() {
                       <div className={`flex ${isCustomer ? 'justify-start' : 'justify-end'}`}>
                         <div className="max-w-[80%]">
                           <div className={`px-3 py-2 rounded-2xl shadow-md ${
-                            isCustomer ? 'bg-white rounded-tl-sm' : isBot ? 'bg-gradient-to-br from-[#00CED1]/25 to-[#00CED1]/15 rounded-tr-sm' : 'bg-gradient-to-br from-[#9370DB] to-[#7B68EE] text-white rounded-tr-sm'
+                            isCustomer ? 'bg-white border-l-4 border-[#7c3aed] rounded-tl-sm' : isBot ? 'bg-gradient-to-br from-[#00CED1]/25 to-[#00CED1]/15 rounded-tr-sm' : 'bg-gradient-to-br from-[#9370DB] to-[#7B68EE] text-white rounded-tr-sm'
                           }`}>
-                            {(isBot || isStaff) && (
-                              <div className={`flex items-center gap-1 text-xs mb-1 font-semibold ${isStaff ? 'text-white/80' : 'text-[#00CED1]'}`}>
-                                {isBot ? <Bot size={10} /> : <User size={10} />}
-                                <span>{isBot ? 'AI' : 'Staff'}</span>
-                              </div>
-                            )}
+                            <div className={`flex items-center gap-1 text-xs mb-1 font-semibold ${isCustomer ? 'text-[#7c3aed]' : isStaff ? 'text-white/80' : 'text-[#00CED1]'}`}>
+                              {isBot ? <Bot size={10} /> : isCustomer ? <MessageCircle size={10} /> : <User size={10} />}
+                              <span>{isBot ? 'Samui Bot' : isCustomer ? (selectedConversation?.customer_name || 'Customer') : (user?.name || 'Staff')}</span>
+                            </div>
                             <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                             <div className={`flex items-center justify-end gap-1 mt-1 ${isStaff ? 'text-white/60' : 'text-gray-400'}`}>
                               <span className="text-xs">{new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
