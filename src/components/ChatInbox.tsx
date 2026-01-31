@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { 
   Search, Send, ArrowLeft, User, Bot, 
   MessageCircle, CheckCheck, RefreshCw, Smile,
-  X, AlertCircle, UserCheck, Cpu
+  AlertCircle, UserCheck, Cpu
 } from 'lucide-react'
 
 interface Conversation {
@@ -603,3 +603,4 @@ export default function ChatInbox() {
     </div>
   )
 }
+
