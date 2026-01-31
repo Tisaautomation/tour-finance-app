@@ -7,11 +7,12 @@ import OrdersTable from './components/OrdersTable'
 import ExpenseForm from './components/ExpenseForm'
 import TransactionsTable from './components/TransactionsTable'
 import UserManagement from './components/UserManagement'
+import ChatInbox from './components/ChatInbox'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle
 } from 'lucide-react'
 
-type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users'
+type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat'
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -55,6 +56,7 @@ function AppContent() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'canViewDashboard' },
     { id: 'orders', label: 'Orders', icon: ShoppingCart, permission: 'canViewOrders' },
     { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
+    { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard' },
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
     { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
@@ -140,6 +142,7 @@ function AppContent() {
               {view === 'dashboard' && <Dashboard orders={orders} transactions={transactions} onRefresh={fetchData} />}
               {view === 'orders' && <OrdersTable orders={orders} />}
               {view === 'transactions' && <TransactionsTable transactions={transactions} />}
+              {view === 'chat' && <ChatInbox />}
               {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
               {view === 'users' && <UserManagement />}
             </>
@@ -162,3 +165,4 @@ export default function App() {
     </AuthProvider>
   )
 }
+
