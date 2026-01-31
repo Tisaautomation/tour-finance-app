@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Save, Loader2, DollarSign, Calendar, FileText, Tag } from 'lucide-react'
+import { Save, Loader2, DollarSign, Calendar, FileText } from 'lucide-react'
 
 interface Props { onSuccess: () => void }
 
