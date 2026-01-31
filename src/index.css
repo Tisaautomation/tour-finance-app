@@ -22,7 +22,8 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: linear-gradient(145deg, #E8EEF5 0%, #F0F4F8 50%, #E4EAF1 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%);
+  background-attachment: fixed;
   color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -299,6 +300,32 @@ body {
   .neu-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
 }
 
+/* Hide scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Chat specific styles */
+.chat-bubble-customer {
+  background: white;
+  border-radius: 18px 18px 18px 4px;
+}
+
+.chat-bubble-bot {
+  background: linear-gradient(145deg, rgba(0, 206, 209, 0.25), rgba(0, 206, 209, 0.15));
+  border-radius: 18px 18px 4px 18px;
+}
+
+.chat-bubble-staff {
+  background: linear-gradient(145deg, #9370DB, #7B68EE);
+  border-radius: 18px 18px 4px 18px;
+  color: white;
+}
+
 /* Filter labels - bold */
 .filter-label {
   font-weight: 700 !important;
@@ -327,3 +354,4 @@ select.neu-input {
     white-space: nowrap;
   }
 }
+
