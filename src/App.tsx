@@ -7,7 +7,7 @@ import OrdersTable from './components/OrdersTable'
 import ExpenseForm from './components/ExpenseForm'
 import TransactionsTable from './components/TransactionsTable'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Settings
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User
 } from 'lucide-react'
 
 type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense'
@@ -62,8 +62,8 @@ function AppContent() {
       {/* Mobile header */}
       <div className="lg:hidden neu-card m-4 p-4 flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <img src="/images/compass.png" alt="TIK" className="w-10 h-10" />
-          <span className="font-bold gradient-text">TIK Finance</span>
+          <img src="/images/compass.png" alt="SATP" className="w-10 h-10" />
+          <span className="font-bold gradient-text">SATP Finance</span>
         </div>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-xl hover:bg-gray-100">
           {sidebarOpen ? <X size={24} className="text-[#2D3748]" /> : <Menu size={24} className="text-[#2D3748]" />}
@@ -82,9 +82,9 @@ function AppContent() {
           <div className="neu-card h-full p-6 flex flex-col">
             {/* Logo */}
             <div className="hidden lg:flex items-center gap-3 mb-8">
-              <img src="/images/compass.png" alt="TIK" className="w-12 h-12" />
+              <img src="/images/compass.png" alt="SATP" className="w-12 h-12" />
               <div>
-                <h1 className="text-lg font-bold gradient-text">Tour in Koh Samui</h1>
+                <h1 className="text-lg font-bold gradient-text">SATP Group</h1>
                 <p className="text-xs text-gray-400">Finance Dashboard</p>
               </div>
             </div>
