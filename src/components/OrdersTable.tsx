@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ShopifyOrder } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Search, Download, Calendar, Filter, ShoppingCart, FileText, Share2 } from 'lucide-react'
+import { Search, Download, Calendar, ShoppingCart, FileText, Share2 } from 'lucide-react'
 
 interface Props {
   orders: ShopifyOrder[]
@@ -121,6 +121,12 @@ export default function OrdersTable({ orders }: Props) {
           <option value="">All Payments</option>
           <option value="paid">Paid</option>
           <option value="pending">Pending</option>
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="neu-input px-4 py-3">
+          <option value="">All Status</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="pending">Pending</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </div>
 
