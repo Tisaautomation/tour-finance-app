@@ -3,108 +3,231 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #00CED1;
-  --color-primary-light: #40E0D0;
-  --color-primary-dark: #008B8B;
-  --color-secondary: #9370DB;
-  --color-secondary-light: #B19CD9;
-  --color-dark: #2D3748;
-  --color-light-bg: #F7FAFC;
-  --color-card-bg: #FFFFFF;
-  --shadow-neumorphic: 8px 8px 16px rgba(174, 174, 192, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.8);
-  --shadow-neumorphic-inset: inset 4px 4px 8px rgba(174, 174, 192, 0.3), inset -4px -4px 8px rgba(255, 255, 255, 0.8);
-  --shadow-soft: 0 4px 20px rgba(0, 206, 209, 0.15);
+  --primary: #9370DB;
+  --primary-light: #B19CD9;
+  --primary-dark: #7B68EE;
+  --accent: #00CED1;
+  --accent-light: #40E0D0;
+  --accent-dark: #008B8B;
+  --dark: #2D3748;
+  --gray: #718096;
+  --light-bg: #E8EEF5;
+  --card-bg: #F5F7FA;
 }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #F7FAFC 0%, #EDF2F7 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(145deg, #E8EEF5 0%, #F0F4F8 50%, #E4EAF1 100%);
   min-height: 100vh;
+  color: var(--dark);
 }
 
-/* Neumorphic card style */
+/* Enhanced Neumorphic Card */
 .neu-card {
-  background: var(--color-card-bg);
-  border-radius: 20px;
-  box-shadow: var(--shadow-neumorphic);
+  background: linear-gradient(145deg, #FFFFFF, #F5F7FA);
+  border-radius: 24px;
+  box-shadow: 
+    12px 12px 24px rgba(166, 180, 200, 0.5),
+    -12px -12px 24px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   transition: all 0.3s ease;
 }
 
 .neu-card:hover {
-  box-shadow: 12px 12px 24px rgba(174, 174, 192, 0.5), -12px -12px 24px rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    16px 16px 32px rgba(166, 180, 200, 0.55),
+    -16px -16px 32px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
-/* Neumorphic button */
+/* Flat Neumorphic */
+.neu-flat {
+  background: linear-gradient(145deg, #F8FAFC, #EDF2F7);
+  border-radius: 20px;
+  box-shadow: 
+    8px 8px 16px rgba(166, 180, 200, 0.4),
+    -8px -8px 16px rgba(255, 255, 255, 0.8);
+}
+
+/* Convex Button (raised) */
 .neu-btn {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  border-radius: 12px;
-  box-shadow: 4px 4px 12px rgba(0, 206, 209, 0.4), -2px -2px 8px rgba(255, 255, 255, 0.6);
-  transition: all 0.3s ease;
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark));
+  border: none;
+  border-radius: 16px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 
+    6px 6px 14px rgba(147, 112, 219, 0.4),
+    -4px -4px 10px rgba(255, 255, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
 }
 
 .neu-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 6px 6px 16px rgba(0, 206, 209, 0.5), -4px -4px 12px rgba(255, 255, 255, 0.8);
+  box-shadow: 
+    8px 8px 18px rgba(147, 112, 219, 0.5),
+    -6px -6px 14px rgba(255, 255, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .neu-btn:active {
   transform: translateY(0);
-  box-shadow: var(--shadow-neumorphic-inset);
+  box-shadow: 
+    inset 4px 4px 8px rgba(123, 104, 238, 0.4),
+    inset -4px -4px 8px rgba(177, 156, 217, 0.3);
 }
 
-/* Neumorphic input */
-.neu-input {
-  background: var(--color-light-bg);
+/* Accent Button */
+.neu-btn-accent {
+  background: linear-gradient(145deg, var(--accent), var(--accent-dark));
   border: none;
-  border-radius: 12px;
-  box-shadow: var(--shadow-neumorphic-inset);
+  border-radius: 16px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 
+    6px 6px 14px rgba(0, 206, 209, 0.35),
+    -4px -4px 10px rgba(255, 255, 255, 0.3);
+  transition: all 0.2s ease;
+}
+
+.neu-btn-accent:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    8px 8px 18px rgba(0, 206, 209, 0.45),
+    -6px -6px 14px rgba(255, 255, 255, 0.4);
+}
+
+/* Concave Input (pressed in) */
+.neu-input {
+  background: linear-gradient(145deg, #E4EAF1, #F0F4F8);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 
+    inset 6px 6px 12px rgba(166, 180, 200, 0.5),
+    inset -6px -6px 12px rgba(255, 255, 255, 0.9);
   transition: all 0.3s ease;
+  color: var(--dark);
 }
 
 .neu-input:focus {
   outline: none;
-  box-shadow: inset 2px 2px 4px rgba(174, 174, 192, 0.2), inset -2px -2px 4px rgba(255, 255, 255, 0.9), 0 0 0 3px rgba(0, 206, 209, 0.2);
+  box-shadow: 
+    inset 6px 6px 12px rgba(166, 180, 200, 0.5),
+    inset -6px -6px 12px rgba(255, 255, 255, 0.9),
+    0 0 0 3px rgba(147, 112, 219, 0.25);
 }
 
-/* Gradient text */
+.neu-input::placeholder { color: var(--gray); }
+
+/* Gradient Text */
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Sidebar active item */
+/* Sidebar Active */
 .sidebar-active {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  box-shadow: 4px 4px 12px rgba(0, 206, 209, 0.3);
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark));
+  color: white;
+  box-shadow: 
+    6px 6px 12px rgba(147, 112, 219, 0.4),
+    -3px -3px 8px rgba(255, 255, 255, 0.2);
 }
 
-/* Stats card gradient */
-.stat-card-primary {
-  background: linear-gradient(135deg, var(--color-primary) 0%, #20B2AA 100%);
+/* Sidebar Item Hover */
+.sidebar-item {
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+.sidebar-item:hover:not(.sidebar-active) {
+  background: rgba(147, 112, 219, 0.08);
 }
 
-.stat-card-secondary {
-  background: linear-gradient(135deg, var(--color-secondary) 0%, #8B5CF6 100%);
+/* Icon Backgrounds */
+.icon-primary {
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark));
+  box-shadow: 4px 4px 10px rgba(147, 112, 219, 0.4);
+}
+.icon-accent {
+  background: linear-gradient(145deg, var(--accent), var(--accent-dark));
+  box-shadow: 4px 4px 10px rgba(0, 206, 209, 0.4);
+}
+.icon-green {
+  background: linear-gradient(145deg, #48BB78, #38A169);
+  box-shadow: 4px 4px 10px rgba(72, 187, 120, 0.4);
+}
+.icon-red {
+  background: linear-gradient(145deg, #F56565, #E53E3E);
+  box-shadow: 4px 4px 10px rgba(245, 101, 101, 0.4);
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Today Gradient Card */
+.today-gradient {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 }
 
-::-webkit-scrollbar-track {
-  background: var(--color-light-bg);
-  border-radius: 4px;
+/* Status Badges */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+.badge-paid {
+  background: linear-gradient(145deg, #C6F6D5, #9AE6B4);
+  color: #276749;
+  box-shadow: 2px 2px 6px rgba(72, 187, 120, 0.25);
+}
+.badge-pending {
+  background: linear-gradient(145deg, #FEFCBF, #FAF089);
+  color: #975A16;
+  box-shadow: 2px 2px 6px rgba(236, 201, 75, 0.25);
+}
+.badge-cancelled {
+  background: linear-gradient(145deg, #FED7D7, #FEB2B2);
+  color: #C53030;
+  box-shadow: 2px 2px 6px rgba(245, 101, 101, 0.25);
 }
 
+/* Table Header Gradient */
+.table-header {
+  background: linear-gradient(90deg, rgba(147, 112, 219, 0.12) 0%, rgba(0, 206, 209, 0.12) 100%);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--light-bg); border-radius: 5px; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-  border-radius: 4px;
+  background: linear-gradient(145deg, var(--primary), var(--accent));
+  border-radius: 5px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-dark);
+/* Loading Spinner */
+.spinner {
+  border: 4px solid rgba(147, 112, 219, 0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* Print */
+@media print {
+  body { background: white !important; }
+  .neu-card { box-shadow: none !important; border: 1px solid #E2E8F0; }
+  .no-print { display: none !important; }
 }
