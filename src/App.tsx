@@ -69,7 +69,7 @@ function AppContent() {
           <div className="logo-circle-sm">
             <img src="/images/compass.png" alt="SATP" />
           </div>
-          <span className="font-bold gradient-text">SATP Finance</span>
+          <span className="font-bold gradient-text">SATP App</span>
         </div>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-xl hover:bg-gray-100">
           {sidebarOpen ? <X size={24} className="text-[#2D3748]" /> : <Menu size={24} className="text-[#2D3748]" />}
@@ -93,7 +93,7 @@ function AppContent() {
               </div>
               <div>
                 <h1 className="text-lg font-bold gradient-text">SATP Group</h1>
-                <p className="text-xs text-gray-400">Finance Dashboard</p>
+                <p className="text-xs text-gray-400">Tour Management</p>
               </div>
             </div>
             
@@ -165,4 +165,5 @@ export default function App() {
     </AuthProvider>
   )
 }
+
 
