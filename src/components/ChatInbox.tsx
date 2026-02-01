@@ -313,7 +313,7 @@ export default function ChatInbox() {
                           }`}>
                             <div className={`flex items-center gap-1 text-xs mb-1 font-semibold ${isCustomer ? 'text-[#7c3aed]' : isStaff ? 'text-white/80' : 'text-[#00CED1]'}`}>
                               {isBot ? <Bot size={10} /> : isCustomer ? <MessageCircle size={10} /> : <User size={10} />}
-                              <span>{isBot ? 'Samui Bot' : isCustomer ? (selectedConversation?.customer_name || 'Customer') : (user?.name || 'Staff')}</span>
+                              <span>{isBot ? 'Niran' : isCustomer ? (selectedConversation?.customer_name || 'Customer') : (user?.name || 'Staff')}</span>
                             </div>
                             <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                             <div className={`flex items-center justify-end gap-1 mt-1 ${isStaff ? 'text-white/60' : 'text-gray-400'}`}>
