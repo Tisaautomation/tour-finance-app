@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
@@ -22,7 +22,6 @@ interface Conversation {
   created_at: string
   updated_at: string
   last_message?: string
-  isNew?: boolean
 }
 
 interface Message {
@@ -35,32 +34,41 @@ interface Message {
   created_at: string
 }
 
-// Sound notification functions using Web Audio API
-const audioContext = typeof window !== 'undefined' ? new (window.AudioContext || (window as any).webkitAudioContext)() : null
+// Sound functions - create audio context lazily to avoid SSR issues
+let audioCtx: AudioContext | null = null
+
+function getAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+  }
+  return audioCtx
+}
 
 function playNewConversationSound() {
-  if (!audioContext) return
-  // Louder, attention-grabbing sound (two-tone notification)
-  const now = audioContext.currentTime
+  const ctx = getAudioContext()
+  if (!ctx) return
   
-  // First tone
-  const osc1 = audioContext.createOscillator()
-  const gain1 = audioContext.createGain()
+  const now = ctx.currentTime
+  
+  // First tone - attention grabbing
+  const osc1 = ctx.createOscillator()
+  const gain1 = ctx.createGain()
   osc1.connect(gain1)
-  gain1.connect(audioContext.destination)
-  osc1.frequency.value = 880 // A5
+  gain1.connect(ctx.destination)
+  osc1.frequency.value = 880
   osc1.type = 'sine'
   gain1.gain.setValueAtTime(0.3, now)
   gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
   osc1.start(now)
   osc1.stop(now + 0.3)
   
-  // Second tone
-  const osc2 = audioContext.createOscillator()
-  const gain2 = audioContext.createGain()
+  // Second tone - higher
+  const osc2 = ctx.createOscillator()
+  const gain2 = ctx.createGain()
   osc2.connect(gain2)
-  gain2.connect(audioContext.destination)
-  osc2.frequency.value = 1100 // Higher
+  gain2.connect(ctx.destination)
+  osc2.frequency.value = 1100
   osc2.type = 'sine'
   gain2.gain.setValueAtTime(0.3, now + 0.15)
   gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45)
@@ -69,23 +77,21 @@ function playNewConversationSound() {
 }
 
 function playMessageSound() {
-  if (!audioContext) return
-  // Soft water drop / click sound
-  const now = audioContext.currentTime
+  const ctx = getAudioContext()
+  if (!ctx) return
   
-  const osc = audioContext.createOscillator()
-  const gain = audioContext.createGain()
+  const now = ctx.currentTime
+  
+  // Water drop sound
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
   osc.connect(gain)
-  gain.connect(audioContext.destination)
-  
-  // Water drop: quick frequency sweep down
+  gain.connect(ctx.destination)
   osc.frequency.setValueAtTime(1800, now)
   osc.frequency.exponentialRampToValueAtTime(200, now + 0.08)
   osc.type = 'sine'
-  
   gain.gain.setValueAtTime(0.15, now)
   gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
-  
   osc.start(now)
   osc.stop(now + 0.1)
 }
@@ -113,10 +119,9 @@ export default function ChatInbox() {
         (payload) => {
           const newConv = payload.new as Conversation
           if (!knownConversationIds.current.has(newConv.id)) {
-            // New conversation - play loud sound and blink
             playNewConversationSound()
             setBlinkingConvId(newConv.id)
-            setTimeout(() => setBlinkingConvId(null), 5000) // Blink for 5 seconds
+            setTimeout(() => setBlinkingConvId(null), 5000)
             knownConversationIds.current.add(newConv.id)
           }
           loadConversations()
@@ -134,7 +139,6 @@ export default function ChatInbox() {
           (payload) => { 
             const newMsg = payload.new as Message
             if (!knownMessageIds.current.has(newMsg.id)) {
-              // Play soft sound for new message (only for customer messages)
               if (newMsg.sender === 'customer') {
                 playMessageSound()
               }
@@ -154,9 +158,7 @@ export default function ChatInbox() {
     setLoading(true)
     const { data } = await supabase.from('conversations').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).limit(100)
     if (data) {
-      // Track known conversation IDs
       data.forEach(conv => knownConversationIds.current.add(conv.id))
-      
       const withMsg = await Promise.all(data.map(async (conv) => {
         const { data: msgData } = await supabase.from('messages').select('content').eq('conversation_id', conv.id).order('created_at', { ascending: false }).limit(1)
         return { ...conv, last_message: msgData?.[0]?.content || '' }
@@ -169,7 +171,6 @@ export default function ChatInbox() {
   async function loadMessages(conversationId: string) {
     const { data } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
     if (data) {
-      // Track known message IDs
       data.forEach(msg => knownMessageIds.current.add(msg.id))
       setMessages(data)
     }
@@ -256,7 +257,6 @@ export default function ChatInbox() {
       {/* Conversation List */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         
-        {/* Search Header */}
         <div className="p-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -283,7 +283,6 @@ export default function ChatInbox() {
           </select>
         </div>
 
-        {/* Conversation List */}
         <div className="flex-1 overflow-y-auto px-3 space-y-2">
           {loading ? (
             <div className="flex items-center justify-center h-32">
@@ -313,7 +312,7 @@ export default function ChatInbox() {
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
                       selectedConversation?.id === conv.id ? 'bg-white/20' : 'bg-gradient-to-br from-cyan-400 to-purple-500'
                     }`}>
-                      <MessageCircle className={selectedConversation?.id === conv.id ? 'text-white' : 'text-white'} size={20} />
+                      <MessageCircle className="text-white" size={20} />
                     </div>
                     <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conv.status)}`} />
                   </div>
@@ -350,7 +349,6 @@ export default function ChatInbox() {
       <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-col flex-1`} style={{ background: 'linear-gradient(180deg, #e8f4f8 0%, #f0e6f6 100%)' }}>
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
             <div className="p-4 flex items-center gap-4 border-b border-white/50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
               <button onClick={() => setShowMobileChat(false)} className="md:hidden p-2 rounded-full hover:bg-gray-100">
                 <ArrowLeft size={20} />
@@ -375,7 +373,6 @@ export default function ChatInbox() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((msg) => {
                 const info = getSenderInfo(msg.sender)
@@ -399,7 +396,6 @@ export default function ChatInbox() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
             <div className="p-4 border-t border-white/50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
               <div className="flex gap-3">
                 <button className="p-3 rounded-2xl" style={{ background: '#f0f2f5', boxShadow: '3px 3px 6px #d1d5db, -3px -3px 6px #ffffff' }}>
