@@ -40,7 +40,7 @@ function AppContent() {
       if (ctx.state === 'suspended') ctx.resume()
       
       const now = ctx.currentTime
-      const volume = soft ? 0.1 : 0.25
+      const volume = soft ? 0.2 : 0.5
       
       if (!soft) {
         const osc1 = ctx.createOscillator()
