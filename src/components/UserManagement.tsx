@@ -51,7 +51,7 @@ export default function UserManagement() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="spinner w-12 h-12"></div></div>
 
   return (
-    <div className="fade-in w-full max-w-full overflow-hidden">
+    <div className="fade-in w-full max-w-full h-full overflow-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
         <div>
