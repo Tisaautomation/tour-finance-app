@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase, ShopifyOrder, Transaction, ROLE_PERMISSIONS } from './lib/supabase'
 import { useAuth, AuthProvider } from './context/AuthContext'
 import Login from './components/Login'
@@ -9,10 +9,16 @@ import TransactionsTable from './components/TransactionsTable'
 import UserManagement from './components/UserManagement'
 import ChatInbox from './components/ChatInbox'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, Volume2
 } from 'lucide-react'
 
 type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat'
+
+interface Conversation {
+  id: string
+  customer_name: string | null
+  status: string
+}
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -21,6 +27,127 @@ function AppContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(false)
+  const [unreadChats, setUnreadChats] = useState(0)
+  
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const soundEnabledRef = useRef(false)
+  const knownConvIds = useRef<Set<string>>(new Set())
+  const viewRef = useRef<View>('dashboard')
+
+  // Keep viewRef in sync
+  useEffect(() => {
+    viewRef.current = view
+  }, [view])
+
+  // Play notification sound
+  const playSound = (loud: boolean) => {
+    try {
+      if (!audioCtxRef.current || !soundEnabledRef.current) return
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+      
+      const now = ctx.currentTime
+      const volume = loud ? 0.6 : 0.15
+      
+      if (loud) {
+        // Loud two-tone alert
+        const osc1 = ctx.createOscillator()
+        const gain1 = ctx.createGain()
+        osc1.connect(gain1)
+        gain1.connect(ctx.destination)
+        osc1.frequency.value = 880
+        osc1.type = 'sine'
+        gain1.gain.setValueAtTime(volume, now)
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.25)
+        osc1.start(now)
+        osc1.stop(now + 0.25)
+        
+        const osc2 = ctx.createOscillator()
+        const gain2 = ctx.createGain()
+        osc2.connect(gain2)
+        gain2.connect(ctx.destination)
+        osc2.frequency.value = 1100
+        osc2.type = 'sine'
+        gain2.gain.setValueAtTime(volume, now + 0.2)
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45)
+        osc2.start(now + 0.2)
+        osc2.stop(now + 0.45)
+      } else {
+        // Soft water drop
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.frequency.setValueAtTime(1200, now)
+        osc.frequency.exponentialRampToValueAtTime(400, now + 0.06)
+        osc.type = 'sine'
+        gain.gain.setValueAtTime(volume, now)
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
+        osc.start(now)
+        osc.stop(now + 0.1)
+      }
+    } catch (e) {
+      console.log('Sound error:', e)
+    }
+  }
+
+  // Enable sounds
+  const enableSounds = async () => {
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      audioCtxRef.current = new AC()
+      if (audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume()
+      }
+      soundEnabledRef.current = true
+      setSoundEnabled(true)
+      // Test sound
+      playSound(true)
+    } catch (e) {
+      console.log('Sound enable error:', e)
+    }
+  }
+
+  // Global realtime subscription for new conversations
+  useEffect(() => {
+    if (!user) return
+
+    // Load existing conversation IDs first
+    const loadExisting = async () => {
+      const { data } = await supabase.from('conversations').select('id').limit(500)
+      if (data) {
+        data.forEach((c: { id: string }) => knownConvIds.current.add(c.id))
+      }
+    }
+    loadExisting()
+
+    const channel = supabase.channel('global_chat_notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, 
+        (payload: { new: Conversation }) => {
+          const conv = payload.new
+          if (!knownConvIds.current.has(conv.id)) {
+            knownConvIds.current.add(conv.id)
+            // Play sound: loud if NOT in chat, soft if in chat
+            const isInChat = viewRef.current === 'chat'
+            playSound(!isInChat)
+            // Update unread count if not in chat
+            if (!isInChat) {
+              setUnreadChats(prev => prev + 1)
+            }
+          }
+        })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
+
+  // Clear unread when entering chat
+  useEffect(() => {
+    if (view === 'chat') {
+      setUnreadChats(0)
+    }
+  }, [view])
 
   useEffect(() => {
     if (user) fetchData()
@@ -56,15 +183,25 @@ function AppContent() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'canViewDashboard' },
     { id: 'orders', label: 'Orders', icon: ShoppingCart, permission: 'canViewOrders' },
     { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
-    { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard' },
+    { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard', badge: unreadChats },
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
     { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
+      {/* Sound Enable Banner */}
+      {!soundEnabled && (
+        <div className="fixed top-0 left-0 right-0 z-[100] p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
+          <button onClick={enableSounds} className="flex items-center justify-center gap-2 w-full font-medium">
+            <Volume2 size={18} />
+            🔔 Tap here to enable sound notifications
+          </button>
+        </div>
+      )}
+      
       {/* Mobile header */}
-      <div className="lg:hidden neu-card mx-3 mt-3 p-3 flex items-center justify-between no-print">
+      <div className={`lg:hidden neu-card mx-3 mt-3 p-3 flex items-center justify-between no-print ${!soundEnabled ? 'mt-14' : ''}`}>
         <div className="flex items-center gap-2">
           <div className="logo-circle-sm">
             <img src="/images/compass.png" alt="SATP" />
@@ -76,7 +213,7 @@ function AppContent() {
         </button>
       </div>
 
-      <div className="flex">
+      <div className={`flex ${!soundEnabled ? 'lg:pt-10' : ''}`}>
         {/* Sidebar */}
         <aside className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -84,6 +221,7 @@ function AppContent() {
           fixed lg:static inset-y-0 left-0 z-50
           w-64 lg:w-72 transition-transform duration-300
           lg:min-h-screen p-3 lg:p-4 no-print
+          ${!soundEnabled ? 'pt-14 lg:pt-3' : ''}
         `}>
           <div className="neu-card h-full p-4 lg:p-6 flex flex-col">
             {/* Logo */}
@@ -109,9 +247,21 @@ function AppContent() {
                 >
                   <item.icon size={18} />
                   {item.label}
+                  {item.badge && item.badge > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               ))}
             </nav>
+
+            {/* Sound Status */}
+            {soundEnabled && (
+              <div className="mb-3 p-2 rounded-xl bg-green-50 text-green-700 text-xs text-center flex items-center justify-center gap-1">
+                <Volume2 size={14} /> Sound ON
+              </div>
+            )}
 
             {/* User Info */}
             <div className="pt-4 border-t border-gray-100">
