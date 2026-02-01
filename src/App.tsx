@@ -198,7 +198,7 @@ function AppContent() {
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
-    <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
+    <div className="min-h-screen lg:h-screen w-full lg:overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
       {/* Notification Banner - only if not enabled */}
       {!notificationsEnabled && (
         <div className="fixed top-0 left-0 right-0 z-[100] p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
@@ -222,7 +222,7 @@ function AppContent() {
         </button>
       </div>
 
-      <div className={`flex flex-1 min-h-0 ${!notificationsEnabled ? 'lg:pt-10' : ''}`}>
+      <div className={`flex flex-1 lg:min-h-0 ${!notificationsEnabled ? 'lg:pt-10' : ''}`}>
         {/* Sidebar */}
         <aside className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -283,8 +283,8 @@ function AppContent() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 w-full flex flex-col min-h-0">
-          <div className="w-full max-w-full flex-1 min-h-0 flex flex-col">
+        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 w-full flex flex-col lg:min-h-0">
+          <div className="w-full max-w-full flex-1 lg:min-h-0 flex flex-col">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
