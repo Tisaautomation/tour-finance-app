@@ -283,8 +283,8 @@ function AppContent() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 w-full flex flex-col lg:min-h-0">
-          <div className="w-full max-w-full flex-1 lg:min-h-0 flex flex-col">
+        <main className="flex-1 min-w-0 p-3 lg:p-4 lg:pr-4 w-full flex flex-col lg:min-h-0">
+          <div className="w-full flex-1 lg:min-h-0 flex flex-col">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
