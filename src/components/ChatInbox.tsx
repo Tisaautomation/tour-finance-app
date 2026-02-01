@@ -378,7 +378,7 @@ export default function ChatInbox() {
               <button onClick={() => setShowMobileChat(false)} className="md:hidden p-2 rounded-full hover:bg-gray-100">
                 <ArrowLeft size={20} />
               </button>
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-content">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center">
                 <User className="text-white" size={18} />
               </div>
               <div className="flex-1">
