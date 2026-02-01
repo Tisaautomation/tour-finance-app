@@ -145,12 +145,26 @@ export default function ChatInbox() {
     
     const msgChannel = supabase.channel('global_msg_unread')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload: { new: Message }) => {
+        async (payload: { new: Message }) => {
           const msg = payload.new
+          // Solo notificar mensajes de cliente, nunca del bot
           if (msg.sender === 'customer') {
+            // Verificar si el bot está activo en esa conversación
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('status')
+              .eq('id', msg.conversation_id)
+              .single()
+            
+            // Solo sonar si el bot NO está activo (necesita atención humana)
+            const botActive = conv?.status === 'active'
+            
             if (selectedConvRef.current !== msg.conversation_id) {
               setUnreadConvs(prev => new Set([...prev, msg.conversation_id]))
-              playMessageSound()
+              // Solo sonar si el bot no está manejando la conversación
+              if (!botActive) {
+                playMessageSound()
+              }
             }
           }
         })
