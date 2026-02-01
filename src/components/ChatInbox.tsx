@@ -286,7 +286,7 @@ export default function ChatInbox() {
   }
 
   return (
-    <div className="h-[85vh] lg:h-full flex rounded-3xl mx-auto overflow-hidden shadow-xl" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)' }}>
+    <div className="h-[calc(100vh-100px)] lg:h-full flex rounded-3xl mx-auto w-full overflow-hidden shadow-xl" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)' }}>
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         <div className="p-4 space-y-3">
           <div className="relative">
