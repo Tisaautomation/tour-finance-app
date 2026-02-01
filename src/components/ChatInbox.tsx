@@ -186,9 +186,10 @@ export default function ChatInbox() {
   }
 
   return (
-    <div className="h-full flex rounded-3xl overflow-hidden shadow-xl" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)' }}>
+    <div className="flex rounded-3xl overflow-hidden shadow-xl h-full" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)', minHeight: 0 }}>
       
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
+      {/* Conversation List */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200 min-h-0`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         
         <div className="p-4 space-y-3 flex-shrink-0">
           <div className="relative">
@@ -216,7 +217,7 @@ export default function ChatInbox() {
           </select>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 space-y-2 pb-4">
+        <div className="flex-1 overflow-y-auto px-3 space-y-2 pb-4 min-h-0">
           {loading ? (
             <div className="flex items-center justify-center h-32">
               <RefreshCw className="animate-spin text-cyan-500" size={24} />
@@ -293,7 +294,8 @@ export default function ChatInbox() {
         </div>
       </div>
 
-      <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-col flex-1`} style={{ background: 'linear-gradient(180deg, #e8f4f8 0%, #f0e6f6 100%)' }}>
+      {/* Chat Area */}
+      <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-col flex-1 min-h-0`} style={{ background: 'linear-gradient(180deg, #e8f4f8 0%, #f0e6f6 100%)' }}>
         {selectedConversation ? (
           <>
             <div className="p-4 flex items-center gap-4 border-b border-white/50 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
@@ -320,7 +322,7 @@ export default function ChatInbox() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
               {messages.map((msg) => {
                 const info = getSenderInfo(msg.sender)
                 const Icon = info.icon
