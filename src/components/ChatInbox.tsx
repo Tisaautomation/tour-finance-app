@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { 
   Search, Send, ArrowLeft, User, 
   MessageCircle, RefreshCw, Smile,
-  UserCheck, Cpu, Volume2
+  UserCheck, Cpu
 } from 'lucide-react'
 
 interface Conversation {
@@ -46,121 +46,47 @@ export default function ChatInbox() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [showMobileChat, setShowMobileChat] = useState(false)
   const [blinkingId, setBlinkingId] = useState<string | null>(null)
-  const [soundEnabled, setSoundEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const knownConvIds = useRef<Set<string>>(new Set())
   const knownMsgIds = useRef<Set<string>>(new Set())
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const soundEnabledRef = useRef(false)
 
-  // Play sound - uses ref to avoid stale closure
-  const playSound = (type: 'alert' | 'drop') => {
+  // Soft drop sound for new messages
+  const playDropSound = () => {
     try {
       if (typeof window === 'undefined') return
-      if (!audioCtxRef.current || !soundEnabledRef.current) return
-      
+      if (!audioCtxRef.current) {
+        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        audioCtxRef.current = new AC()
+      }
       const ctx = audioCtxRef.current
-      if (ctx.state === 'suspended') {
-        ctx.resume()
-      }
+      if (ctx.state === 'suspended') ctx.resume()
       
-      const now = ctx.currentTime
-      
-      if (type === 'alert') {
-        // Two-tone alert for new chat
-        const osc1 = ctx.createOscillator()
-        const gain1 = ctx.createGain()
-        osc1.connect(gain1)
-        gain1.connect(ctx.destination)
-        osc1.frequency.value = 880
-        osc1.type = 'sine'
-        gain1.gain.setValueAtTime(0.5, now)
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.2)
-        osc1.start(now)
-        osc1.stop(now + 0.2)
-        
-        const osc2 = ctx.createOscillator()
-        const gain2 = ctx.createGain()
-        osc2.connect(gain2)
-        gain2.connect(ctx.destination)
-        osc2.frequency.value = 1100
-        osc2.type = 'sine'
-        gain2.gain.setValueAtTime(0.5, now + 0.15)
-        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35)
-        osc2.start(now + 0.15)
-        osc2.stop(now + 0.35)
-      } else {
-        // Water drop for message
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.frequency.setValueAtTime(1500, now)
-        osc.frequency.exponentialRampToValueAtTime(300, now + 0.08)
-        osc.type = 'sine'
-        gain.gain.setValueAtTime(0.3, now)
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1)
-        osc.start(now)
-        osc.stop(now + 0.12)
-      }
-    } catch (e) {
-      console.log('Sound error:', e)
-    }
-  }
-
-  // Enable sounds - must be triggered by user interaction
-  const enableSounds = async () => {
-    try {
-      if (typeof window === 'undefined') return
-      
-      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      audioCtxRef.current = new AC()
-      
-      if (audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume()
-      }
-      
-      soundEnabledRef.current = true
-      setSoundEnabled(true)
-      
-      // Play test sound immediately
-      const ctx = audioCtxRef.current
       const now = ctx.currentTime
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.connect(gain)
       gain.connect(ctx.destination)
-      osc.frequency.value = 880
+      osc.frequency.setValueAtTime(1200, now)
+      osc.frequency.exponentialRampToValueAtTime(400, now + 0.06)
       osc.type = 'sine'
-      gain.gain.setValueAtTime(0.5, now)
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
+      gain.gain.setValueAtTime(0.15, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
       osc.start(now)
-      osc.stop(now + 0.3)
-      
+      osc.stop(now + 0.1)
     } catch (e) {
-      console.log('Sound enable error:', e)
-    }
-  }
-
-  // Test blinking manually
-  const testBlink = () => {
-    const testId = conversations[0]?.id
-    if (testId) {
-      playSound('alert')
-      setBlinkingId(testId)
-      setTimeout(() => setBlinkingId(null), 3000)
+      console.log('Sound error:', e)
     }
   }
 
   useEffect(() => {
     loadConversations()
-    const channel = supabase.channel('conversations_realtime')
+    const channel = supabase.channel('conversations_inbox')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, 
         (payload: { new: Conversation }) => {
           const conv = payload.new
-          console.log('NEW CONVERSATION:', conv.id)
           if (!knownConvIds.current.has(conv.id)) {
-            playSound('alert')
+            // Blink new conversation
             setBlinkingId(conv.id)
             setTimeout(() => setBlinkingId(null), 6000)
             knownConvIds.current.add(conv.id)
@@ -181,7 +107,7 @@ export default function ChatInbox() {
             const msg = payload.new
             if (!knownMsgIds.current.has(msg.id)) {
               if (msg.sender === 'customer') {
-                playSound('drop')
+                playDropSound()
               }
               knownMsgIds.current.add(msg.id)
             }
@@ -298,25 +224,6 @@ export default function ChatInbox() {
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         
         <div className="p-4 space-y-3">
-          {!soundEnabled ? (
-            <button 
-              onClick={enableSounds}
-              className="w-full py-3 px-4 rounded-2xl text-white font-medium flex items-center justify-center gap-2 animate-pulse"
-              style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.4)' }}
-            >
-              <Volume2 size={20} />
-              🔔 Tap to Enable Notifications
-            </button>
-          ) : (
-            <button 
-              onClick={testBlink}
-              className="w-full py-2 px-4 rounded-2xl bg-green-100 text-green-700 text-sm flex items-center justify-center gap-2"
-            >
-              <Volume2 size={16} />
-              ✓ Sound ON - Tap to test
-            </button>
-          )}
-          
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
