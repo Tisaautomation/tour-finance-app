@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { 
   Search, Send, ArrowLeft, User, 
   MessageCircle, RefreshCw, Smile,
-  UserCheck, Cpu
+  UserCheck, Cpu, Volume2
 } from 'lucide-react'
 
 interface Conversation {
@@ -46,28 +46,48 @@ export default function ChatInbox() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [showMobileChat, setShowMobileChat] = useState(false)
   const [blinkingId, setBlinkingId] = useState<string | null>(null)
+  const [soundEnabled, setSoundEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const knownConvIds = useRef<Set<string>>(new Set())
   const knownMsgIds = useRef<Set<string>>(new Set())
   const audioCtxRef = useRef<AudioContext | null>(null)
 
-  const playNewChatSound = () => {
+  // Enable sounds - must be triggered by user interaction
+  const enableSounds = async () => {
     try {
       if (typeof window === 'undefined') return
       if (!audioCtxRef.current) {
         const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
         audioCtxRef.current = new AC()
       }
+      // Resume if suspended (browser policy)
+      if (audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume()
+      }
+      setSoundEnabled(true)
+      // Play test sound
+      playNewChatSound()
+    } catch (e) {
+      console.log('Sound enable error:', e)
+    }
+  }
+
+  const playNewChatSound = () => {
+    try {
+      if (!audioCtxRef.current || !soundEnabled) return
       const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') return
+      
       const now = ctx.currentTime
       
+      // Two-tone notification
       const osc1 = ctx.createOscillator()
       const gain1 = ctx.createGain()
       osc1.connect(gain1)
       gain1.connect(ctx.destination)
       osc1.frequency.value = 880
       osc1.type = 'sine'
-      gain1.gain.setValueAtTime(0.4, now)
+      gain1.gain.setValueAtTime(0.5, now)
       gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.2)
       osc1.start(now)
       osc1.stop(now + 0.2)
@@ -78,7 +98,7 @@ export default function ChatInbox() {
       gain2.connect(ctx.destination)
       osc2.frequency.value = 1100
       osc2.type = 'sine'
-      gain2.gain.setValueAtTime(0.4, now + 0.15)
+      gain2.gain.setValueAtTime(0.5, now + 0.15)
       gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35)
       osc2.start(now + 0.15)
       osc2.stop(now + 0.35)
@@ -89,12 +109,10 @@ export default function ChatInbox() {
 
   const playDropSound = () => {
     try {
-      if (typeof window === 'undefined') return
-      if (!audioCtxRef.current) {
-        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        audioCtxRef.current = new AC()
-      }
+      if (!audioCtxRef.current || !soundEnabled) return
       const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') return
+      
       const now = ctx.currentTime
       
       const osc = ctx.createOscillator()
@@ -104,7 +122,7 @@ export default function ChatInbox() {
       osc.frequency.setValueAtTime(1500, now)
       osc.frequency.exponentialRampToValueAtTime(300, now + 0.08)
       osc.type = 'sine'
-      gain.gain.setValueAtTime(0.2, now)
+      gain.gain.setValueAtTime(0.3, now)
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1)
       osc.start(now)
       osc.stop(now + 0.12)
@@ -130,7 +148,7 @@ export default function ChatInbox() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => loadConversations())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [soundEnabled])
 
   useEffect(() => {
     if (selectedConversation) {
@@ -151,7 +169,7 @@ export default function ChatInbox() {
         .subscribe()
       return () => { supabase.removeChannel(channel) }
     }
-  }, [selectedConversation])
+  }, [selectedConversation, soundEnabled])
 
   useEffect(() => { scrollToBottom() }, [messages])
 
@@ -258,6 +276,24 @@ export default function ChatInbox() {
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         
         <div className="p-4 space-y-3">
+          {/* Sound Enable Button */}
+          {!soundEnabled && (
+            <button 
+              onClick={enableSounds}
+              className="w-full py-3 px-4 rounded-2xl text-white font-medium flex items-center justify-center gap-2 animate-pulse"
+              style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.4)' }}
+            >
+              <Volume2 size={20} />
+              🔔 Tap to Enable Sound Notifications
+            </button>
+          )}
+          {soundEnabled && (
+            <div className="py-2 px-4 rounded-2xl bg-green-100 text-green-700 text-sm text-center flex items-center justify-center gap-2">
+              <Volume2 size={16} />
+              ✓ Sound notifications enabled
+            </div>
+          )}
+          
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -297,7 +333,7 @@ export default function ChatInbox() {
                 onClick={() => { setSelectedConversation(conv); setShowMobileChat(true); setBlinkingId(null) }}
                 className={`p-4 rounded-2xl cursor-pointer transition-all ${
                   selectedConversation?.id === conv.id ? 'scale-[1.02]' : 'hover:scale-[1.01]'
-                } ${blinkingId === conv.id ? 'animate-pulse ring-4 ring-cyan-400 ring-opacity-75' : ''}`}
+                } ${blinkingId === conv.id ? 'animate-pulse ring-4 ring-amber-400' : ''}`}
                 style={{
                   background: selectedConversation?.id === conv.id 
                     ? 'linear-gradient(145deg, #0CC0DF, #38bdf8)' 
