@@ -33,7 +33,6 @@ function AppContent() {
     viewRef.current = view
   }, [view])
 
-  // Play notification sound
   const playSound = (soft: boolean) => {
     try {
       if (!audioCtxRef.current || !soundEnabledRef.current) return
@@ -83,19 +82,16 @@ function AppContent() {
     }
   }
 
-  // Show browser notification
   const showNotification = (title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(title, {
         body,
         icon: '/images/compass.png',
-        tag: 'chat-message',
-        renotify: true
+        tag: 'chat-message'
       })
     }
   }
 
-  // Enable notifications
   const enableNotifications = async () => {
     try {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
@@ -110,41 +106,16 @@ function AppContent() {
       }
       
       setNotificationsEnabled(true)
-      playSound(false) // Test sound
+      playSound(false)
     } catch (e) {
       console.log('Enable error:', e)
       setNotificationsEnabled(true)
     }
   }
 
-  // Count unread messages
-  const countUnread = async () => {
-    const { count } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('sender', 'customer')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-    
-    // Get messages we've already seen
-    const { data: recentMsgs } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('sender', 'customer')
-      .order('created_at', { ascending: false })
-      .limit(100)
-    
-    if (recentMsgs) {
-      const newCount = recentMsgs.filter(m => !knownMsgIds.current.has(m.id)).length
-      return newCount
-    }
-    return count || 0
-  }
-
-  // Load existing message IDs and subscribe to new messages
   useEffect(() => {
     if (!user) return
 
-    // Load existing message IDs
     const loadExisting = async () => {
       const { data } = await supabase
         .from('messages')
@@ -152,31 +123,25 @@ function AppContent() {
         .order('created_at', { ascending: false })
         .limit(500)
       if (data) {
-        data.forEach(m => knownMsgIds.current.add(m.id))
+        data.forEach((m: { id: string }) => knownMsgIds.current.add(m.id))
       }
     }
     loadExisting()
 
-    // Subscribe to ALL new messages (not just conversations)
     const channel = supabase.channel('global_messages')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'messages' }, 
-        (payload: { new: { id: string; sender: string; content: string; conversation_id: string } }) => {
+        (payload: { new: { id: string; sender: string; content: string } }) => {
           const msg = payload.new
           
-          // Only notify for customer messages we haven't seen
           if (msg.sender === 'customer' && !knownMsgIds.current.has(msg.id)) {
             knownMsgIds.current.add(msg.id)
             
             const isInChat = viewRef.current === 'chat'
             
-            // Play sound
             playSound(isInChat)
-            
-            // Show notification
             showNotification('💬 New Message', msg.content?.substring(0, 50) || 'New message')
             
-            // Update badge if not in chat
             if (!isInChat) {
               setUnreadCount(prev => prev + 1)
             }
@@ -187,7 +152,6 @@ function AppContent() {
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
-  // Clear unread when entering chat
   useEffect(() => {
     if (view === 'chat') {
       setUnreadCount(0)
@@ -234,19 +198,19 @@ function AppContent() {
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
-      {/* Notification Enable Banner */}
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
+      {/* Notification Banner - only if not enabled */}
       {!notificationsEnabled && (
-        <div className="flex-shrink-0 p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
-          <button onClick={enableNotifications} className="flex items-center justify-center gap-2 w-full font-medium">
-            <Bell size={18} />
+        <div className="fixed top-0 left-0 right-0 z-[100] p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
+          <button onClick={enableNotifications} className="flex items-center justify-center gap-2 w-full font-medium text-sm">
+            <Bell size={16} />
             🔔 Tap to enable notifications
           </button>
         </div>
       )}
       
       {/* Mobile header */}
-      <div className="lg:hidden neu-card mx-3 mt-3 p-3 flex items-center justify-between no-print flex-shrink-0">
+      <div className={`lg:hidden neu-card mx-3 mt-3 p-3 flex items-center justify-between no-print ${!notificationsEnabled ? 'mt-12' : ''}`}>
         <div className="flex items-center gap-2">
           <div className="logo-circle-sm">
             <img src="/images/compass.png" alt="SATP" />
@@ -258,18 +222,18 @@ function AppContent() {
         </button>
       </div>
 
-      <div className="flex flex-1 min-h-0">
+      <div className={`flex ${!notificationsEnabled ? 'lg:pt-10' : ''}`}>
         {/* Sidebar */}
         <aside className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
           fixed lg:static inset-y-0 left-0 z-50
           w-64 lg:w-72 transition-transform duration-300
-          p-3 lg:p-4 no-print flex flex-col
+          lg:min-h-screen p-3 lg:p-4 no-print
         `}>
-          <div className="neu-card flex-1 p-4 lg:p-6 flex flex-col min-h-0">
+          <div className="neu-card h-full p-4 lg:p-6 flex flex-col">
             {/* Logo */}
-            <div className="hidden lg:flex items-center gap-3 mb-8 flex-shrink-0">
+            <div className="hidden lg:flex items-center gap-3 mb-8">
               <div className="logo-circle">
                 <img src="/images/compass.png" alt="SATP" />
               </div>
@@ -280,7 +244,7 @@ function AppContent() {
             </div>
             
             {/* Navigation */}
-            <nav className="space-y-1 lg:space-y-2 flex-1 overflow-y-auto">
+            <nav className="space-y-1 lg:space-y-2 flex-1">
               {navItems.map(item => (
                 <button
                   key={item.id}
@@ -300,15 +264,8 @@ function AppContent() {
               ))}
             </nav>
 
-            {/* Notification Status */}
-            {notificationsEnabled && (
-              <div className="mb-3 p-2 rounded-xl bg-green-50 text-green-700 text-xs text-center flex-shrink-0">
-                🔔 Notifications ON
-              </div>
-            )}
-
             {/* User Info */}
-            <div className="pt-4 border-t border-gray-100 flex-shrink-0">
+            <div className="pt-4 border-t border-gray-100">
               <div className="flex items-center gap-2 lg:gap-3 mb-3 p-2 lg:p-3 rounded-xl bg-gray-50/50">
                 <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl icon-primary flex items-center justify-center">
                   <User size={16} className="text-white" />
@@ -326,21 +283,23 @@ function AppContent() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 flex flex-col min-h-0">
-          {loading ? (
-            <div className="flex items-center justify-center flex-1">
-              <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0">
-              {view === 'dashboard' && <Dashboard orders={orders} transactions={transactions} onRefresh={fetchData} />}
-              {view === 'orders' && <OrdersTable orders={orders} />}
-              {view === 'transactions' && <TransactionsTable transactions={transactions} />}
-              {view === 'chat' && <ChatInbox />}
-              {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
-              {view === 'users' && <UserManagement />}
-            </div>
-          )}
+        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 w-full">
+          <div className="w-full max-w-full overflow-x-hidden">
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
+              </div>
+            ) : (
+              <>
+                {view === 'dashboard' && <Dashboard orders={orders} transactions={transactions} onRefresh={fetchData} />}
+                {view === 'orders' && <OrdersTable orders={orders} />}
+                {view === 'transactions' && <TransactionsTable transactions={transactions} />}
+                {view === 'chat' && <ChatInbox />}
+                {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
+                {view === 'users' && <UserManagement />}
+              </>
+            )}
+          </div>
         </main>
       </div>
 
