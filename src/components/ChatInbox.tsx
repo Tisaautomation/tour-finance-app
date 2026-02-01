@@ -34,66 +34,49 @@ interface Message {
   created_at: string
 }
 
-// Sound functions - create audio context lazily to avoid SSR issues
-let audioCtx: AudioContext | null = null
-
-function getAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+// Simple sound functions using Audio API
+function playNewChatSound() {
+  try {
+    if (typeof window === 'undefined') return
+    // Use a simple beep via oscillator
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 880
+    osc.type = 'sine'
+    gain.gain.value = 0.3
+    osc.start()
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+    osc.stop(ctx.currentTime + 0.3)
+  } catch (e) {
+    console.log('Sound not supported')
   }
-  return audioCtx
 }
 
-function playNewConversationSound() {
-  const ctx = getAudioContext()
-  if (!ctx) return
-  
-  const now = ctx.currentTime
-  
-  // First tone - attention grabbing
-  const osc1 = ctx.createOscillator()
-  const gain1 = ctx.createGain()
-  osc1.connect(gain1)
-  gain1.connect(ctx.destination)
-  osc1.frequency.value = 880
-  osc1.type = 'sine'
-  gain1.gain.setValueAtTime(0.3, now)
-  gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
-  osc1.start(now)
-  osc1.stop(now + 0.3)
-  
-  // Second tone - higher
-  const osc2 = ctx.createOscillator()
-  const gain2 = ctx.createGain()
-  osc2.connect(gain2)
-  gain2.connect(ctx.destination)
-  osc2.frequency.value = 1100
-  osc2.type = 'sine'
-  gain2.gain.setValueAtTime(0.3, now + 0.15)
-  gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45)
-  osc2.start(now + 0.15)
-  osc2.stop(now + 0.45)
-}
-
-function playMessageSound() {
-  const ctx = getAudioContext()
-  if (!ctx) return
-  
-  const now = ctx.currentTime
-  
-  // Water drop sound
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  osc.connect(gain)
-  gain.connect(ctx.destination)
-  osc.frequency.setValueAtTime(1800, now)
-  osc.frequency.exponentialRampToValueAtTime(200, now + 0.08)
-  osc.type = 'sine'
-  gain.gain.setValueAtTime(0.15, now)
-  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
-  osc.start(now)
-  osc.stop(now + 0.1)
+function playDropSound() {
+  try {
+    if (typeof window === 'undefined') return
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 1200
+    osc.type = 'sine'
+    gain.gain.value = 0.15
+    osc.start()
+    osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.08)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08)
+    osc.stop(ctx.currentTime + 0.1)
+  } catch (e) {
+    console.log('Sound not supported')
+  }
 }
 
 export default function ChatInbox() {
@@ -107,22 +90,22 @@ export default function ChatInbox() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [showMobileChat, setShowMobileChat] = useState(false)
-  const [blinkingConvId, setBlinkingConvId] = useState<string | null>(null)
+  const [blinkingId, setBlinkingId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const knownConversationIds = useRef<Set<string>>(new Set())
-  const knownMessageIds = useRef<Set<string>>(new Set())
+  const knownConvIds = useRef<Set<string>>(new Set())
+  const knownMsgIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     loadConversations()
     const channel = supabase.channel('conversations_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, 
         (payload) => {
-          const newConv = payload.new as Conversation
-          if (!knownConversationIds.current.has(newConv.id)) {
-            playNewConversationSound()
-            setBlinkingConvId(newConv.id)
-            setTimeout(() => setBlinkingConvId(null), 5000)
-            knownConversationIds.current.add(newConv.id)
+          const conv = payload.new as Conversation
+          if (!knownConvIds.current.has(conv.id)) {
+            playNewChatSound()
+            setBlinkingId(conv.id)
+            setTimeout(() => setBlinkingId(null), 5000)
+            knownConvIds.current.add(conv.id)
           }
           loadConversations()
         })
@@ -137,14 +120,12 @@ export default function ChatInbox() {
       const channel = supabase.channel(`messages_${selectedConversation.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` }, 
           (payload) => { 
-            const newMsg = payload.new as Message
-            if (!knownMessageIds.current.has(newMsg.id)) {
-              if (newMsg.sender === 'customer') {
-                playMessageSound()
-              }
-              knownMessageIds.current.add(newMsg.id)
+            const msg = payload.new as Message
+            if (!knownMsgIds.current.has(msg.id) && msg.sender === 'customer') {
+              playDropSound()
+              knownMsgIds.current.add(msg.id)
             }
-            setMessages(prev => [...prev, newMsg])
+            setMessages(prev => [...prev, msg])
             scrollToBottom() 
           })
         .subscribe()
@@ -158,7 +139,7 @@ export default function ChatInbox() {
     setLoading(true)
     const { data } = await supabase.from('conversations').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).limit(100)
     if (data) {
-      data.forEach(conv => knownConversationIds.current.add(conv.id))
+      data.forEach(c => knownConvIds.current.add(c.id))
       const withMsg = await Promise.all(data.map(async (conv) => {
         const { data: msgData } = await supabase.from('messages').select('content').eq('conversation_id', conv.id).order('created_at', { ascending: false }).limit(1)
         return { ...conv, last_message: msgData?.[0]?.content || '' }
@@ -171,7 +152,7 @@ export default function ChatInbox() {
   async function loadMessages(conversationId: string) {
     const { data } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
     if (data) {
-      data.forEach(msg => knownMessageIds.current.add(msg.id))
+      data.forEach(m => knownMsgIds.current.add(m.id))
       setMessages(data)
     }
   }
@@ -294,10 +275,10 @@ export default function ChatInbox() {
             filteredConversations.map((conv) => (
               <div
                 key={conv.id}
-                onClick={() => { setSelectedConversation(conv); setShowMobileChat(true); setBlinkingConvId(null) }}
+                onClick={() => { setSelectedConversation(conv); setShowMobileChat(true); setBlinkingId(null) }}
                 className={`p-4 rounded-2xl cursor-pointer transition-all ${
                   selectedConversation?.id === conv.id ? 'scale-[1.02]' : 'hover:scale-[1.01]'
-                } ${blinkingConvId === conv.id ? 'animate-pulse ring-2 ring-cyan-400' : ''}`}
+                } ${blinkingId === conv.id ? 'animate-pulse ring-2 ring-cyan-400' : ''}`}
                 style={{
                   background: selectedConversation?.id === conv.id 
                     ? 'linear-gradient(145deg, #0CC0DF, #38bdf8)' 
