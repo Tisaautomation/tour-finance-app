@@ -59,7 +59,7 @@ export default function ExpenseForm({ onSuccess }: Props) {
         <p className="text-gray-500 mt-1">Record business expenses and costs</p>
       </div>
 
-      <div className="max-w-2xl">
+      <div className="max-w-5xl">
         <form onSubmit={handleSubmit} className="neu-card p-8 space-y-6">
           {/* Type */}
           <div>
