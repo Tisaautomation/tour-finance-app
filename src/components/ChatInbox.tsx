@@ -49,35 +49,6 @@ export default function ChatInbox() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const knownConvIds = useRef<Set<string>>(new Set())
   const knownMsgIds = useRef<Set<string>>(new Set())
-  const audioCtxRef = useRef<AudioContext | null>(null)
-
-  // Soft drop sound for new messages
-  const playDropSound = () => {
-    try {
-      if (typeof window === 'undefined') return
-      if (!audioCtxRef.current) {
-        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        audioCtxRef.current = new AC()
-      }
-      const ctx = audioCtxRef.current
-      if (ctx.state === 'suspended') ctx.resume()
-      
-      const now = ctx.currentTime
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.frequency.setValueAtTime(1200, now)
-      osc.frequency.exponentialRampToValueAtTime(400, now + 0.06)
-      osc.type = 'sine'
-      gain.gain.setValueAtTime(0.15, now)
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
-      osc.start(now)
-      osc.stop(now + 0.1)
-    } catch (e) {
-      console.log('Sound error:', e)
-    }
-  }
 
   useEffect(() => {
     loadConversations()
@@ -86,7 +57,6 @@ export default function ChatInbox() {
         (payload: { new: Conversation }) => {
           const conv = payload.new
           if (!knownConvIds.current.has(conv.id)) {
-            // Blink new conversation
             setBlinkingId(conv.id)
             setTimeout(() => setBlinkingId(null), 6000)
             knownConvIds.current.add(conv.id)
@@ -106,9 +76,6 @@ export default function ChatInbox() {
           (payload: { new: Message }) => { 
             const msg = payload.new
             if (!knownMsgIds.current.has(msg.id)) {
-              if (msg.sender === 'customer') {
-                playDropSound()
-              }
               knownMsgIds.current.add(msg.id)
             }
             setMessages(prev => [...prev, msg])
@@ -219,11 +186,11 @@ export default function ChatInbox() {
   }
 
   return (
-    <div className="h-[calc(100vh-140px)] flex rounded-3xl overflow-hidden shadow-xl" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)' }}>
+    <div className="h-full flex rounded-3xl overflow-hidden shadow-xl" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)' }}>
       
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 flex-shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -249,7 +216,7 @@ export default function ChatInbox() {
           </select>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 space-y-2">
+        <div className="flex-1 overflow-y-auto px-3 space-y-2 pb-4">
           {loading ? (
             <div className="flex items-center justify-center h-32">
               <RefreshCw className="animate-spin text-cyan-500" size={24} />
@@ -329,7 +296,7 @@ export default function ChatInbox() {
       <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-col flex-1`} style={{ background: 'linear-gradient(180deg, #e8f4f8 0%, #f0e6f6 100%)' }}>
         {selectedConversation ? (
           <>
-            <div className="p-4 flex items-center gap-4 border-b border-white/50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
+            <div className="p-4 flex items-center gap-4 border-b border-white/50 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
               <button onClick={() => setShowMobileChat(false)} className="md:hidden p-2 rounded-full hover:bg-gray-100">
                 <ArrowLeft size={20} />
               </button>
@@ -376,7 +343,7 @@ export default function ChatInbox() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 border-t border-white/50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
+            <div className="p-4 border-t border-white/50 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
               <div className="flex gap-3">
                 <button className="p-3 rounded-2xl" style={{ background: '#f0f2f5', boxShadow: '3px 3px 6px #d1d5db, -3px -3px 6px #ffffff' }}>
                   <Smile className="text-gray-400" size={20} />
