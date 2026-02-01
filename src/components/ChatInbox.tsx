@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
-  Search, Send, ArrowLeft, User, Bot, 
-  MessageCircle, CheckCheck, RefreshCw, Smile,
-  AlertCircle, UserCheck, Cpu
+  Search, Send, ArrowLeft, User, 
+  MessageCircle, RefreshCw, Smile,
+  UserCheck, Cpu
 } from 'lucide-react'
 
 interface Conversation {
