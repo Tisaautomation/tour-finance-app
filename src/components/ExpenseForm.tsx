@@ -53,7 +53,7 @@ export default function ExpenseForm({ onSuccess }: Props) {
   }
 
   return (
-    <div className="fade-in h-full overflow-auto">
+    <div className="fade-in lg:h-full lg:overflow-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold gradient-text">Add Expense</h1>
         <p className="text-gray-500 mt-1">Record business expenses and costs</p>
