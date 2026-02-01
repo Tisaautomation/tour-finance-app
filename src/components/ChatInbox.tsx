@@ -51,7 +51,6 @@ export default function ChatInbox() {
   const knownMsgIds = useRef<Set<string>>(new Set())
   const audioCtxRef = useRef<AudioContext | null>(null)
 
-  // Sound functions using ref to avoid SSR issues
   const playNewChatSound = () => {
     try {
       if (typeof window === 'undefined') return
@@ -62,7 +61,6 @@ export default function ChatInbox() {
       const ctx = audioCtxRef.current
       const now = ctx.currentTime
       
-      // Two-tone alert
       const osc1 = ctx.createOscillator()
       const gain1 = ctx.createGain()
       osc1.connect(gain1)
@@ -99,7 +97,6 @@ export default function ChatInbox() {
       const ctx = audioCtxRef.current
       const now = ctx.currentTime
       
-      // Water drop
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.connect(gain)
@@ -120,13 +117,12 @@ export default function ChatInbox() {
     loadConversations()
     const channel = supabase.channel('conversations_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, 
-        (payload) => {
-          const conv = payload.new as Conversation
+        (payload: { new: Conversation }) => {
+          const conv = payload.new
           if (!knownConvIds.current.has(conv.id)) {
-            // NEW conversation - play loud sound + blink
             playNewChatSound()
             setBlinkingId(conv.id)
-            setTimeout(() => setBlinkingId(null), 6000) // Blink 6 seconds
+            setTimeout(() => setBlinkingId(null), 6000)
             knownConvIds.current.add(conv.id)
           }
           loadConversations()
@@ -141,10 +137,9 @@ export default function ChatInbox() {
       loadMessages(selectedConversation.id)
       const channel = supabase.channel(`messages_${selectedConversation.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` }, 
-          (payload) => { 
-            const msg = payload.new as Message
+          (payload: { new: Message }) => { 
+            const msg = payload.new
             if (!knownMsgIds.current.has(msg.id)) {
-              // New message - play soft drop sound for customer messages
               if (msg.sender === 'customer') {
                 playDropSound()
               }
@@ -164,9 +159,8 @@ export default function ChatInbox() {
     setLoading(true)
     const { data } = await supabase.from('conversations').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).limit(100)
     if (data) {
-      // Track known IDs on initial load
-      data.forEach(c => knownConvIds.current.add(c.id))
-      const withMsg = await Promise.all(data.map(async (conv) => {
+      data.forEach((c: Conversation) => knownConvIds.current.add(c.id))
+      const withMsg = await Promise.all(data.map(async (conv: Conversation) => {
         const { data: msgData } = await supabase.from('messages').select('content').eq('conversation_id', conv.id).order('created_at', { ascending: false }).limit(1)
         return { ...conv, last_message: msgData?.[0]?.content || '' }
       }))
@@ -178,7 +172,7 @@ export default function ChatInbox() {
   async function loadMessages(conversationId: string) {
     const { data } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
     if (data) {
-      data.forEach(m => knownMsgIds.current.add(m.id))
+      data.forEach((m: Message) => knownMsgIds.current.add(m.id))
       setMessages(data)
     }
   }
@@ -261,10 +255,8 @@ export default function ChatInbox() {
   return (
     <div className="h-[calc(100vh-140px)] flex rounded-3xl overflow-hidden shadow-xl" style={{ background: 'linear-gradient(145deg, #e6e9ef, #f5f7fa)' }}>
       
-      {/* Conversation List */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r border-gray-200`} style={{ background: 'linear-gradient(180deg, #f0f2f5 0%, #e4e7eb 100%)' }}>
         
-        {/* Search Header */}
         <div className="p-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -291,7 +283,6 @@ export default function ChatInbox() {
           </select>
         </div>
 
-        {/* Conversation List */}
         <div className="flex-1 overflow-y-auto px-3 space-y-2">
           {loading ? (
             <div className="flex items-center justify-center h-32">
@@ -327,7 +318,7 @@ export default function ChatInbox() {
                       blinkingId === conv.id ? 'bg-amber-500' :
                       'bg-gradient-to-br from-cyan-400 to-purple-500'
                     }`}>
-                      <MessageCircle className={selectedConversation?.id === conv.id ? 'text-white' : 'text-white'} size={20} />
+                      <MessageCircle className="text-white" size={20} />
                     </div>
                     <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conv.status)}`} />
                   </div>
@@ -369,11 +360,9 @@ export default function ChatInbox() {
         </div>
       </div>
 
-      {/* Chat Area */}
       <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-col flex-1`} style={{ background: 'linear-gradient(180deg, #e8f4f8 0%, #f0e6f6 100%)' }}>
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
             <div className="p-4 flex items-center gap-4 border-b border-white/50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
               <button onClick={() => setShowMobileChat(false)} className="md:hidden p-2 rounded-full hover:bg-gray-100">
                 <ArrowLeft size={20} />
@@ -398,7 +387,6 @@ export default function ChatInbox() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((msg) => {
                 const info = getSenderInfo(msg.sender)
@@ -422,7 +410,6 @@ export default function ChatInbox() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
             <div className="p-4 border-t border-white/50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
               <div className="flex gap-3">
                 <button className="p-3 rounded-2xl" style={{ background: '#f0f2f5', boxShadow: '3px 3px 6px #d1d5db, -3px -3px 6px #ffffff' }}>
