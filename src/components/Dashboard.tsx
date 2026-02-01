@@ -346,7 +346,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   }
 
   return (
-    <div className="fade-in h-full overflow-auto">
+    <div className="fade-in lg:h-full lg:overflow-auto">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
         <div>
