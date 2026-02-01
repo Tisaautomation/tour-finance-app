@@ -9,16 +9,10 @@ import TransactionsTable from './components/TransactionsTable'
 import UserManagement from './components/UserManagement'
 import ChatInbox from './components/ChatInbox'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, Volume2, Bell
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, Bell
 } from 'lucide-react'
 
 type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat'
-
-interface Conversation {
-  id: string
-  customer_name: string | null
-  status: string
-}
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -28,18 +22,18 @@ function AppContent() {
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-  const [unreadChats, setUnreadChats] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
   
   const audioCtxRef = useRef<AudioContext | null>(null)
   const soundEnabledRef = useRef(false)
-  const knownConvIds = useRef<Set<string>>(new Set())
   const viewRef = useRef<View>('dashboard')
+  const knownMsgIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     viewRef.current = view
   }, [view])
 
-  // Play notification sound - normal volume, soft when in chat
+  // Play notification sound
   const playSound = (soft: boolean) => {
     try {
       if (!audioCtxRef.current || !soundEnabledRef.current) return
@@ -47,10 +41,9 @@ function AppContent() {
       if (ctx.state === 'suspended') ctx.resume()
       
       const now = ctx.currentTime
-      const volume = soft ? 0.1 : 0.25 // Normal volume, not loud
+      const volume = soft ? 0.1 : 0.25
       
       if (!soft) {
-        // Two-tone notification (normal volume)
         const osc1 = ctx.createOscillator()
         const gain1 = ctx.createGain()
         osc1.connect(gain1)
@@ -73,7 +66,6 @@ function AppContent() {
         osc2.start(now + 0.15)
         osc2.stop(now + 0.35)
       } else {
-        // Soft water drop
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
         osc.connect(gain)
@@ -97,18 +89,15 @@ function AppContent() {
       new Notification(title, {
         body,
         icon: '/images/compass.png',
-        badge: '/images/compass.png',
-        tag: 'new-chat',
-        renotify: true,
-        requireInteraction: false
+        tag: 'chat-message',
+        renotify: true
       })
     }
   }
 
-  // Enable notifications (sound + browser notifications)
+  // Enable notifications
   const enableNotifications = async () => {
     try {
-      // Enable sound
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       audioCtxRef.current = new AC()
       if (audioCtxRef.current.state === 'suspended') {
@@ -116,57 +105,80 @@ function AppContent() {
       }
       soundEnabledRef.current = true
       
-      // Request browser notification permission
-      if ('Notification' in window) {
-        const permission = await Notification.requestPermission()
-        if (permission === 'granted') {
-          // Test notification
-          new Notification('SATP App', {
-            body: '✓ Notifications enabled!',
-            icon: '/images/compass.png'
-          })
-        }
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        await Notification.requestPermission()
       }
       
       setNotificationsEnabled(true)
-      // Test sound
-      playSound(false)
+      playSound(false) // Test sound
     } catch (e) {
       console.log('Enable error:', e)
+      setNotificationsEnabled(true)
     }
   }
 
-  // Global realtime subscription
+  // Count unread messages
+  const countUnread = async () => {
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('sender', 'customer')
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    
+    // Get messages we've already seen
+    const { data: recentMsgs } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('sender', 'customer')
+      .order('created_at', { ascending: false })
+      .limit(100)
+    
+    if (recentMsgs) {
+      const newCount = recentMsgs.filter(m => !knownMsgIds.current.has(m.id)).length
+      return newCount
+    }
+    return count || 0
+  }
+
+  // Load existing message IDs and subscribe to new messages
   useEffect(() => {
     if (!user) return
 
+    // Load existing message IDs
     const loadExisting = async () => {
-      const { data } = await supabase.from('conversations').select('id').limit(500)
+      const { data } = await supabase
+        .from('messages')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(500)
       if (data) {
-        data.forEach((c: { id: string }) => knownConvIds.current.add(c.id))
+        data.forEach(m => knownMsgIds.current.add(m.id))
       }
     }
     loadExisting()
 
-    const channel = supabase.channel('global_chat_notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, 
-        (payload: { new: Conversation }) => {
-          const conv = payload.new
-          if (!knownConvIds.current.has(conv.id)) {
-            knownConvIds.current.add(conv.id)
+    // Subscribe to ALL new messages (not just conversations)
+    const channel = supabase.channel('global_messages')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'messages' }, 
+        (payload: { new: { id: string; sender: string; content: string; conversation_id: string } }) => {
+          const msg = payload.new
+          
+          // Only notify for customer messages we haven't seen
+          if (msg.sender === 'customer' && !knownMsgIds.current.has(msg.id)) {
+            knownMsgIds.current.add(msg.id)
+            
             const isInChat = viewRef.current === 'chat'
             
-            // Play sound: normal if not in chat, soft if in chat
+            // Play sound
             playSound(isInChat)
             
-            // Show browser notification (works even when app is in background)
-            showNotification(
-              '💬 New Chat',
-              `${conv.customer_name || 'Web Visitor'} started a conversation`
-            )
+            // Show notification
+            showNotification('💬 New Message', msg.content?.substring(0, 50) || 'New message')
             
+            // Update badge if not in chat
             if (!isInChat) {
-              setUnreadChats(prev => prev + 1)
+              setUnreadCount(prev => prev + 1)
             }
           }
         })
@@ -175,9 +187,10 @@ function AppContent() {
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
+  // Clear unread when entering chat
   useEffect(() => {
     if (view === 'chat') {
-      setUnreadChats(0)
+      setUnreadCount(0)
     }
   }, [view])
 
@@ -215,16 +228,16 @@ function AppContent() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'canViewDashboard' },
     { id: 'orders', label: 'Orders', icon: ShoppingCart, permission: 'canViewOrders' },
     { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
-    { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard', badge: unreadChats },
+    { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard', badge: unreadCount },
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
     { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
-    <div className="min-h-screen h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
+    <div className="h-screen w-screen overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
       {/* Notification Enable Banner */}
       {!notificationsEnabled && (
-        <div className="flex-shrink-0 p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center z-50">
+        <div className="flex-shrink-0 p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
           <button onClick={enableNotifications} className="flex items-center justify-center gap-2 w-full font-medium">
             <Bell size={18} />
             🔔 Tap to enable notifications
@@ -245,16 +258,16 @@ function AppContent() {
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
         <aside className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
           fixed lg:static inset-y-0 left-0 z-50
           w-64 lg:w-72 transition-transform duration-300
-          h-full p-3 lg:p-4 no-print
+          p-3 lg:p-4 no-print flex flex-col
         `}>
-          <div className="neu-card h-full p-4 lg:p-6 flex flex-col">
+          <div className="neu-card flex-1 p-4 lg:p-6 flex flex-col min-h-0">
             {/* Logo */}
             <div className="hidden lg:flex items-center gap-3 mb-8 flex-shrink-0">
               <div className="logo-circle">
@@ -278,7 +291,7 @@ function AppContent() {
                 >
                   <item.icon size={18} />
                   {item.label}
-                  {item.badge && item.badge > 0 && (
+                  {item.badge !== undefined && item.badge > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
                       {item.badge}
                     </span>
@@ -289,8 +302,8 @@ function AppContent() {
 
             {/* Notification Status */}
             {notificationsEnabled && (
-              <div className="mb-3 p-2 rounded-xl bg-green-50 text-green-700 text-xs text-center flex items-center justify-center gap-1 flex-shrink-0">
-                <Volume2 size={14} /> Notifications ON
+              <div className="mb-3 p-2 rounded-xl bg-green-50 text-green-700 text-xs text-center flex-shrink-0">
+                🔔 Notifications ON
               </div>
             )}
 
@@ -312,24 +325,22 @@ function AppContent() {
           </div>
         </aside>
 
-        {/* Main content - fills remaining space */}
-        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 overflow-hidden flex flex-col">
-          <div className="w-full h-full flex flex-col">
-            {loading ? (
-              <div className="flex items-center justify-center flex-1">
-                <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-auto">
-                {view === 'dashboard' && <Dashboard orders={orders} transactions={transactions} onRefresh={fetchData} />}
-                {view === 'orders' && <OrdersTable orders={orders} />}
-                {view === 'transactions' && <TransactionsTable transactions={transactions} />}
-                {view === 'chat' && <ChatInbox />}
-                {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
-                {view === 'users' && <UserManagement />}
-              </div>
-            )}
-          </div>
+        {/* Main content */}
+        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 flex flex-col min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center flex-1">
+              <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0">
+              {view === 'dashboard' && <Dashboard orders={orders} transactions={transactions} onRefresh={fetchData} />}
+              {view === 'orders' && <OrdersTable orders={orders} />}
+              {view === 'transactions' && <TransactionsTable transactions={transactions} />}
+              {view === 'chat' && <ChatInbox />}
+              {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
+              {view === 'users' && <UserManagement />}
+            </div>
+          )}
         </main>
       </div>
 
