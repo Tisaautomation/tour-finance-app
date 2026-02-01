@@ -198,7 +198,7 @@ function AppContent() {
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
+    <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
       {/* Notification Banner - only if not enabled */}
       {!notificationsEnabled && (
         <div className="fixed top-0 left-0 right-0 z-[100] p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
@@ -222,14 +222,14 @@ function AppContent() {
         </button>
       </div>
 
-      <div className={`flex ${!notificationsEnabled ? 'lg:pt-10' : ''}`}>
+      <div className={`flex flex-1 min-h-0 ${!notificationsEnabled ? 'lg:pt-10' : ''}`}>
         {/* Sidebar */}
         <aside className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
           fixed lg:static inset-y-0 left-0 z-50
           w-64 lg:w-72 transition-transform duration-300
-          lg:min-h-screen p-3 lg:p-4 no-print
+          h-full p-3 lg:p-4 no-print
         `}>
           <div className="neu-card h-full p-4 lg:p-6 flex flex-col">
             {/* Logo */}
@@ -283,8 +283,8 @@ function AppContent() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 w-full">
-          <div className="w-full max-w-full overflow-x-hidden">
+        <main className="flex-1 min-w-0 p-3 lg:p-6 lg:pl-4 w-full flex flex-col min-h-0">
+          <div className="w-full max-w-full flex-1 min-h-0 flex flex-col">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
