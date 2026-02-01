@@ -40,7 +40,7 @@ export default function TransactionsTable({ transactions }: Props) {
   }
 
   return (
-    <div className="fade-in">
+    <div className="fade-in h-full overflow-auto">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold gradient-text">Transactions</h1>
