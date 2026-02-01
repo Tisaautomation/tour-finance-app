@@ -44,7 +44,7 @@ export default function OrdersTable({ orders }: Props) {
   }
 
   return (
-    <div className="fade-in w-full max-w-full lg:h-full lg:overflow-auto">
+    <div className="fade-in w-full max-w-full lg:h-full lg:overflow-auto overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
         <div>
