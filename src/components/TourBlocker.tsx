@@ -155,6 +155,8 @@ export default function TourBlocker() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [tourSearch, setTourSearch] = useState('')
+  const [showTourDropdown, setShowTourDropdown] = useState(false)
 
   // Calendar state
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
@@ -250,6 +252,8 @@ export default function TourBlocker() {
     })
     setEditingId(null)
     setShowForm(false)
+    setTourSearch('')
+    setShowTourDropdown(false)
   }
 
   function handleTourSelect(tourName: string) {
@@ -741,23 +745,63 @@ export default function TourBlocker() {
             </div>
 
             <div className="space-y-4">
-              {/* Tour Selection */}
-              <div>
+              {/* Tour Selection - Searchable */}
+              <div className="relative">
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5">Tour *</label>
-                <select
-                  value={form.tour_name}
-                  onChange={e => handleTourSelect(e.target.value)}
-                  className="neu-input w-full px-3 py-2.5 text-sm"
-                >
-                  <option value="">Select a tour...</option>
-                  {CATEGORIES.map(cat => (
-                    <optgroup key={cat} label={`── ${cat} ──`}>
-                      {TOURS.filter(t => t.category === cat).map(t => (
-                        <option key={t.shopify_product_id} value={t.name}>{t.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={showTourDropdown ? tourSearch : form.tour_name}
+                    onChange={e => { setTourSearch(e.target.value); setShowTourDropdown(true) }}
+                    onFocus={() => { setShowTourDropdown(true); setTourSearch('') }}
+                    placeholder="Search tours by name..."
+                    className="neu-input w-full pl-9 pr-8 py-2.5 text-sm"
+                  />
+                  {form.tour_name && (
+                    <button
+                      onClick={() => { handleTourSelect(''); setTourSearch(''); setShowTourDropdown(false) }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                {showTourDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowTourDropdown(false)} />
+                    <div className="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
+                      {(() => {
+                        const q = tourSearch.toLowerCase()
+                        const filtered = TOURS.filter(t => t.name.toLowerCase().includes(q))
+                        if (filtered.length === 0) return (
+                          <div className="px-4 py-3 text-sm text-gray-400">No tours match "{tourSearch}"</div>
+                        )
+                        const grouped: Record<string, TourOption[]> = {}
+                        filtered.forEach(t => {
+                          if (!grouped[t.category]) grouped[t.category] = []
+                          grouped[t.category].push(t)
+                        })
+                        return Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([cat, tours]) => (
+                          <div key={cat}>
+                            <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 sticky top-0">{cat}</div>
+                            {tours.map(t => (
+                              <button
+                                key={t.shopify_product_id}
+                                onClick={() => { handleTourSelect(t.name); setTourSearch(''); setShowTourDropdown(false) }}
+                                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#9370DB]/10 transition-colors ${
+                                  form.tour_name === t.name ? 'bg-[#9370DB]/10 text-[#9370DB] font-semibold' : 'text-[#2D3748]'
+                                }`}
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Provider + Program row */}
