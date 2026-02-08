@@ -103,8 +103,6 @@ const PROGRAMS = ['Morning', 'Afternoon', 'Feeding', 'Museum']
 const REASONS = ['Fully Booked', 'Weather', 'Maintenance', 'Provider Unavailable', 'Holiday', 'Other']
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const WEEKDAY_LABELS: Record<string, string> = { Mo: 'Mon', Tu: 'Tue', We: 'Wed', Th: 'Thu', Fr: 'Fri', Sa: 'Sat', Su: 'Sun' }
-const CATEGORIES = [...new Set(TOURS.map(t => t.category))].sort()
-
 // ─── Helpers ─────────────────────────────────────────────────────
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
