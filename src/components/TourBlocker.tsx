@@ -96,13 +96,84 @@ const PROVIDERS = [
   'TIK01','TIK30','TIK31','TIK32','TIK33','TIK34','TIK35','TIK36','TIK37','TIK38',
   'TIK39','TIK40','TIK41','TIK42','TIK43','TIK44','TIK45','TIK46','TIK47','TIK48',
   'TIK49','TIK50','TIK51','TIK52','TIK53','TIK54','TIK55','TIK56','TIK57','TIK58',
-  'TIK59','TIK60','TIK61','TIK62','TIK77','TIK78'
+  'TIK59','TIK60','TIK61','TIK62','TIK77','TIK78','TIK79','TIK89'
 ]
 
 const PROGRAMS = ['Morning', 'Afternoon', 'Feeding', 'Museum']
 const REASONS = ['Fully Booked', 'Weather', 'Maintenance', 'Provider Unavailable', 'Holiday', 'Other']
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const WEEKDAY_LABELS: Record<string, string> = { Mo: 'Mon', Tu: 'Tue', We: 'Wed', Th: 'Thu', Fr: 'Fri', Sa: 'Sat', Su: 'Sun' }
+
+// ─── Tour↔Provider Mapping (from GSheet TourProviders + Tours Priority columns) ───
+const TOUR_PROVIDER_MAP: Record<string, string[]> = {
+  '8265093349570': ['TIK34','TIK47'],
+  '8265094922434': ['TIK33'],
+  '8265095741634': ['TIK01','TIK47'],
+  '8265097183426': ['TIK33'],
+  '8265088532674': ['TIK33'],
+  '8265098854594': ['TIK30','TIK47'],
+  '8265099477186': ['TIK38'],
+  '8265100198082': ['TIK38'],
+  '8265102885058': ['TIK78'],
+  '8265104097474': ['TIK78'],
+  '8265104687298': ['TIK78'],
+  '8265105080514': ['TIK38'],
+  '8265107964098': ['TIK41','TIK57'],
+  '8265108226242': ['TIK31','TIK43','TIK48','TIK61','TIK77'],
+  '8265108947138': ['TIK44'],
+  '8265109242050': ['TIK47','TIK79','TIK43'],
+  '8265109766338': ['TIK31','TIK43','TIK48','TIK61','TIK77'],
+  '8265110782146': ['TIK31'],
+  '8265111339202': ['TIK43'],
+  '8265123037378': ['TIK42','TIK58','TIK59'],
+  '8265124708546': ['TIK36'],
+  '8265125068994': ['TIK52'],
+  '8265125134530': ['TIK52'],
+  '8265125265602': ['TIK45'],
+  '8265125593282': ['TIK37'],
+  '8265126117570': ['TIK37'],
+  '8265126936770': ['TIK37','TIK58'],
+  '8265127821506': ['TIK60'],
+  '8265128181954': ['TIK51'],
+  '8229682053314': ['TIK50'],
+  '8265135390914': ['TIK50'],
+  '8265139552450': ['TIK39'],
+  '8265139847362': ['TIK49','TIK42','TIK59'],
+  '8265140699330': ['TIK49','TIK42','TIK59'],
+  '8265142468802': ['TIK62','TIK39'],
+  '8265144893634': ['TIK62','TIK39'],
+  '8265146269890': ['TIK62','TIK39'],
+  '8265146761410': ['TIK62','TIK39'],
+  '8265147547842': ['TIK62','TIK39'],
+  '8265147941058': ['TIK62','TIK39'],
+  '8265148235970': ['TIK62','TIK39'],
+  '8265148629186': ['TIK89'],
+  '8265149874370': ['TIK89'],
+  '8265150169282': ['TIK89'],
+  '8285471768770': ['TIK89'],
+  '8285471965378': ['TIK89'],
+  '8285472030914': ['TIK89'],
+  '8285472096450': ['TIK89'],
+  '8285472129218': ['TIK89'],
+  '8285472489666': ['TIK89'],
+  '8285567549634': ['TIK62','TIK39'],
+  '8285568106690': ['TIK62','TIK39'],
+  '8259550970050': ['TIK01','TIK47'],
+  '8259570761922': ['TIK62','TIK39'],
+  '8265110945986': ['TIK61'],
+  '8265109602498': ['TIK78'],
+  '8285510860994': ['TIK33'],
+  '8265080439042': ['TIK46','TIK43'],
+}
+
+// Build reverse map: provider → shopify_product_ids
+const PROVIDER_TOUR_MAP: Record<string, string[]> = {}
+for (const [spid, provs] of Object.entries(TOUR_PROVIDER_MAP)) {
+  for (const p of provs) {
+    if (!PROVIDER_TOUR_MAP[p]) PROVIDER_TOUR_MAP[p] = []
+    if (!PROVIDER_TOUR_MAP[p].includes(spid)) PROVIDER_TOUR_MAP[p].push(spid)
+  }
+}
 // ─── Helpers ─────────────────────────────────────────────────────
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
@@ -256,12 +327,31 @@ export default function TourBlocker() {
 
   function handleTourSelect(tourName: string) {
     const tour = TOURS.find(t => t.name === tourName)
+    const spid = tour?.shopify_product_id ? String(tour.shopify_product_id) : null
+    const allowedProviders = spid ? (TOUR_PROVIDER_MAP[spid] || []) : []
     setForm(f => ({
       ...f,
       tour_name: tourName,
-      shopify_product_id: tour?.shopify_product_id || null
+      shopify_product_id: tour?.shopify_product_id || null,
+      // Clear provider if not compatible with new tour
+      provider_id: tourName && f.provider_id && allowedProviders.length > 0 && !allowedProviders.includes(f.provider_id) ? '' : f.provider_id,
     }))
   }
+
+  // Get providers available for the currently selected tour in the form
+  const formProviders = useMemo(() => {
+    if (!form.shopify_product_id) return PROVIDERS
+    const mapped = TOUR_PROVIDER_MAP[String(form.shopify_product_id)]
+    return mapped && mapped.length > 0 ? mapped.filter(p => PROVIDERS.includes(p)) : PROVIDERS
+  }, [form.shopify_product_id])
+
+  // Get tours available for the currently selected provider in the form
+  const formTours = useMemo(() => {
+    if (!form.provider_id) return TOURS
+    const spids = PROVIDER_TOUR_MAP[form.provider_id]
+    if (!spids || spids.length === 0) return TOURS
+    return TOURS.filter(t => t.shopify_product_id && spids.includes(String(t.shopify_product_id)))
+  }, [form.provider_id])
 
   function toggleWeekday(day: string) {
     setForm(f => ({
@@ -820,7 +910,8 @@ export default function TourBlocker() {
                     <div className="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
                       {(() => {
                         const q = tourSearch.toLowerCase()
-                        const filtered = TOURS.filter(t => t.name.toLowerCase().includes(q))
+                        const toursPool = formTours
+                        const filtered = toursPool.filter(t => t.name.toLowerCase().includes(q))
                         if (filtered.length === 0) return (
                           <div className="px-4 py-3 text-sm text-gray-400">No tours match "{tourSearch}"</div>
                         )
@@ -855,9 +946,21 @@ export default function TourBlocker() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5">Provider (optional)</label>
-                  <select value={form.provider_id} onChange={e => setForm(f => ({ ...f, provider_id: e.target.value }))} className="neu-input w-full px-3 py-2.5 text-sm">
+                  <select value={form.provider_id} onChange={e => {
+                    const newProvider = e.target.value
+                    setForm(f => {
+                      // If provider selected, check if current tour is compatible
+                      if (newProvider && f.shopify_product_id) {
+                        const provTours = PROVIDER_TOUR_MAP[newProvider]
+                        if (provTours && provTours.length > 0 && !provTours.includes(String(f.shopify_product_id))) {
+                          return { ...f, provider_id: newProvider, tour_name: '', shopify_product_id: null }
+                        }
+                      }
+                      return { ...f, provider_id: newProvider }
+                    })
+                  }} className="neu-input w-full px-3 py-2.5 text-sm">
                     <option value="">All Providers</option>
-                    {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
+                    {formProviders.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
                 <div>
