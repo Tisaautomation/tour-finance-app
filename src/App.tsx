@@ -8,11 +8,12 @@ import ExpenseForm from './components/ExpenseForm'
 import TransactionsTable from './components/TransactionsTable'
 import UserManagement from './components/UserManagement'
 import ChatInbox from './components/ChatInbox'
+import TourBlocker from './components/TourBlocker'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, Bell
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, Bell, ShieldBan
 } from 'lucide-react'
 
-type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat'
+type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker'
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -188,12 +189,14 @@ function AppContent() {
     return <Login />
   }
 
+  // NEW SIDEBAR ORDER: Dashboard, Chat, Blocker, Add Expense, Orders, Users
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'canViewDashboard' },
-    { id: 'orders', label: 'Orders', icon: ShoppingCart, permission: 'canViewOrders' },
-    { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
     { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard', badge: unreadCount },
+    { id: 'blocker', label: 'Tour Blocker', icon: ShieldBan, permission: 'canManageBlocks' },
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
+    { id: 'orders', label: 'Manage Orders', icon: ShoppingCart, permission: 'canViewOrders' },
+    { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
     { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
@@ -292,9 +295,10 @@ function AppContent() {
             ) : (
               <>
                 {view === 'dashboard' && <Dashboard orders={orders} transactions={transactions} onRefresh={fetchData} />}
+                {view === 'chat' && <ChatInbox />}
+                {view === 'blocker' && <TourBlocker />}
                 {view === 'orders' && <OrdersTable orders={orders} />}
                 {view === 'transactions' && <TransactionsTable transactions={transactions} />}
-                {view === 'chat' && <ChatInbox />}
                 {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
                 {view === 'users' && <UserManagement />}
               </>
