@@ -909,9 +909,12 @@ export default function TourBlocker() {
                     <div className="fixed inset-0 z-10" onClick={() => setShowTourDropdown(false)} />
                     <div className="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
                       {(() => {
-                        const q = tourSearch.toLowerCase()
+                        const words = tourSearch.toLowerCase().split(/\s+/).filter(Boolean)
                         const toursPool = formTours
-                        const filtered = toursPool.filter(t => t.name.toLowerCase().includes(q))
+                        const filtered = toursPool.filter(t => {
+                          const name = t.name.toLowerCase()
+                          return words.length === 0 || words.every(w => name.includes(w))
+                        })
                         if (filtered.length === 0) return (
                           <div className="px-4 py-3 text-sm text-gray-400">No tours match "{tourSearch}"</div>
                         )
