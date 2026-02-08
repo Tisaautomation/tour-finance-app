@@ -73,6 +73,7 @@ export const ROLE_PERMISSIONS = {
     canManageUsers: true,
     canSendEmails: true,
     canViewAllProviders: true,
+    canManageBlocks: true,
   },
   manager: {
     canViewDashboard: true,
@@ -83,6 +84,7 @@ export const ROLE_PERMISSIONS = {
     canManageUsers: false,
     canSendEmails: true,
     canViewAllProviders: true,
+    canManageBlocks: true,
   },
   staff: {
     canViewDashboard: true,
@@ -93,6 +95,7 @@ export const ROLE_PERMISSIONS = {
     canManageUsers: false,
     canSendEmails: false,
     canViewAllProviders: false,
+    canManageBlocks: false,
   },
   provider: {
     canViewDashboard: true,
@@ -103,5 +106,6 @@ export const ROLE_PERMISSIONS = {
     canManageUsers: false,
     canSendEmails: false,
     canViewAllProviders: false,
+    canManageBlocks: false,
   },
 }
