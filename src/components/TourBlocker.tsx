@@ -453,7 +453,8 @@ export default function TourBlocker() {
   // ─── Stats ─────────────────────────────────────────────────────
   const activeCount = blocks.filter(b => b.is_active).length
   const todayStr = new Date().toISOString().split('T')[0]
-  const blockedToday = blocks.filter(b => b.is_active && isDateBlocked(todayStr, b)).length
+  const blockedTodayList = blocks.filter(b => b.is_active && isDateBlocked(todayStr, b))
+  const blockedToday = blockedTodayList.length
 
   // ─── Render ────────────────────────────────────────────────────
   return (
@@ -641,6 +642,54 @@ export default function TourBlocker() {
           </div>
         </div>
       </div>
+
+      {/* ─── BLOCKED RIGHT NOW ─────────────────────────────────── */}
+      {blockedTodayList.length > 0 && (
+        <div className="neu-card p-6 mb-6 border-l-4 border-l-red-400">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-[#FF6B6B] flex items-center gap-2">
+              <AlertTriangle size={20} /> Blocked Right Now — {new Date().toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+            </h2>
+            <span className="text-sm font-bold text-red-500 bg-red-50 px-3 py-1 rounded-full">
+              {blockedTodayList.length} tour{blockedTodayList.length > 1 ? 's' : ''} blocked
+            </span>
+          </div>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {blockedTodayList.map(block => (
+              <div key={block.id} className="flex items-center gap-3 p-3 bg-red-50/50 rounded-xl border border-red-100">
+                <div className="w-2 h-10 rounded-full bg-red-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-[#2D3748] text-sm truncate max-w-[280px]">{block.tour_name}</span>
+                    {reasonBadge(block.reason)}
+                    {block.program && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600">{block.program}</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                    <span>{blockDateDisplay(block)}</span>
+                    {block.provider_id && <span className="font-semibold text-[#9370DB]">{block.provider_id}</span>}
+                    {block.notes && <span className="italic text-gray-400 truncate max-w-[150px]">"{block.notes}"</span>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleActive(block)}
+                  className="shrink-0 px-4 py-2 bg-white border border-red-200 text-red-600 font-bold text-xs rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all flex items-center gap-1.5"
+                >
+                  <PowerOff size={14} /> Unblock
+                </button>
+                <button
+                  onClick={() => startEdit(block)}
+                  className="shrink-0 p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Edit"
+                >
+                  <Edit3 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Blocks List */}
       <div className="neu-card p-6 mb-6">
