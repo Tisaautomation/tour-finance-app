@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { supabase, ShopifyOrder, Booking, Transaction, Provider, LineItem } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
-  Search, Download, Calendar, ShoppingCart, FileText, Share2, X, 
-  ChevronRight, Users, MapPin, Clock, CreditCard, Package,
+  Search, Download, Calendar, ShoppingCart, FileText, X, 
+  ChevronRight, Users, Clock, CreditCard, Package,
   AlertCircle, CheckCircle, XCircle, Edit3, Save, RefreshCw,
   DollarSign, User, Truck, Tag
 } from 'lucide-react'
@@ -128,7 +128,6 @@ export default function OrdersTable({ orders }: Props) {
     }
 
     // Load related transactions
-    const bookingId = bookingData?.[0]?.id || `BKG%${order.shopify_order_number}`
     const { data: txData } = await supabase
       .from('transactions')
       .select('*')
