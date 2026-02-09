@@ -131,12 +131,54 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
   )
 }
 
+// Isolated input bar — prevents full ChatInbox re-render on every keystroke (INP fix)
+function ChatInputBar({ onSend, sending }: { onSend: (msg: string) => void; sending: boolean }) {
+  const [text, setText] = useState('')
+
+  const insertEmoji = useCallback((emoji: string) => {
+    setText(prev => prev + emoji)
+    inputRef.current?.focus()
+  }, [])
+
+  const handleSend = useCallback(() => {
+    if (!text.trim() || sending) return
+    onSend(text.trim())
+    setText('')
+    setShowEmoji(false)
+    inputRef.current?.focus()
+  }, [text, sending, onSend])
+
+  return (
+    <div className="p-4 border-t border-white/50 flex-shrink-0 relative" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
+      {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
+      <div className="flex gap-2 sm:gap-3 items-center">
+        <button onClick={() => setShowEmoji(!showEmoji)} className={`p-3 rounded-2xl flex-shrink-0 transition-colors ${showEmoji ? 'bg-purple-100' : ''}`} style={showEmoji ? {} : { background: '#f0f2f5', boxShadow: '3px 3px 6px #d1d5db, -3px -3px 6px #ffffff' }}>
+          {showEmoji ? <X className="text-purple-500" size={20} /> : <Smile className="text-gray-400" size={20} />}
+        </button>
+        <input
+          ref={inputRef}
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          onFocus={() => setShowEmoji(false)}
+          placeholder="Type a message..."
+          className="flex-1 px-4 sm:px-5 py-3 rounded-2xl border-none outline-none min-w-0"
+          style={{ background: '#fff', boxShadow: 'inset 3px 3px 6px #d1d5db, inset -3px -3px 6px #ffffff' }}
+        />
+        <button onClick={handleSend} disabled={sending || !text.trim()} className="p-3 rounded-2xl text-white disabled:opacity-50 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0CC0DF, #7c3aed)', boxShadow: '0 4px 15px rgba(12, 192, 223, 0.3)' }}>
+          <Send size={20} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function ChatInbox() {
   const { user } = useAuth()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
-  const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
@@ -144,19 +186,12 @@ export default function ChatInbox() {
   const [showMobileChat, setShowMobileChat] = useState(false)
   const [blinkingId, setBlinkingId] = useState<string | null>(null)
   const [unreadConvs, setUnreadConvs] = useState<Set<string>>(new Set())
-  const [showEmoji, setShowEmoji] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
   const knownConvIds = useRef<Set<string>>(new Set())
   const knownMsgIds = useRef<Set<string>>(new Set())
   const selectedConvRef = useRef<string | null>(null)
 
   useEffect(() => { selectedConvRef.current = selectedConversation?.id || null }, [selectedConversation])
-
-  const insertEmoji = useCallback((emoji: string) => {
-    setNewMessage(prev => prev + emoji)
-    inputRef.current?.focus()
-  }, [])
 
   useEffect(() => {
     loadConversations()
@@ -262,17 +297,14 @@ export default function ChatInbox() {
 
   function scrollToBottom() { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }
 
-  async function sendMessage() {
-    if (!newMessage.trim() || !selectedConversation || sending) return
+  const sendMessage = useCallback(async (msg: string) => {
+    if (!msg || !selectedConversation || sending) return
     setSending(true)
-    setShowEmoji(false)
-    await supabase.from('messages').insert({ conversation_id: selectedConversation.id, sender: 'staff', content: newMessage.trim() })
+    await supabase.from('messages').insert({ conversation_id: selectedConversation.id, sender: 'staff', content: msg })
     await supabase.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'human_active' }).eq('id', selectedConversation.id)
     playSound('sent')
-    setNewMessage('')
     setSending(false)
-    inputRef.current?.focus()
-  }
+  }, [selectedConversation, sending])
 
   async function takeOverConversation() {
     if (!selectedConversation) return
@@ -321,7 +353,6 @@ export default function ChatInbox() {
   const handleSelectConversation = (conv: Conversation) => {
     setSelectedConversation(conv)
     setShowMobileChat(true)
-    setShowEmoji(false)
     setBlinkingId(null)
     markConversationRead(conv.id)
     setUnreadConvs(prev => { const next = new Set(prev); next.delete(conv.id); return next })
@@ -444,29 +475,8 @@ export default function ChatInbox() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area with Emoji Picker */}
-            <div className="p-4 border-t border-white/50 flex-shrink-0 relative" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)' }}>
-              {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
-              <div className="flex gap-2 sm:gap-3 items-center">
-                <button onClick={() => setShowEmoji(!showEmoji)} className={`p-3 rounded-2xl flex-shrink-0 transition-colors ${showEmoji ? 'bg-purple-100' : ''}`} style={showEmoji ? {} : { background: '#f0f2f5', boxShadow: '3px 3px 6px #d1d5db, -3px -3px 6px #ffffff' }}>
-                  {showEmoji ? <X className="text-purple-500" size={20} /> : <Smile className="text-gray-400" size={20} />}
-                </button>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-                  onFocus={() => setShowEmoji(false)}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 sm:px-5 py-3 rounded-2xl border-none outline-none min-w-0"
-                  style={{ background: '#fff', boxShadow: 'inset 3px 3px 6px #d1d5db, inset -3px -3px 6px #ffffff' }}
-                />
-                <button onClick={sendMessage} disabled={sending || !newMessage.trim()} className="p-3 rounded-2xl text-white disabled:opacity-50 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0CC0DF, #7c3aed)', boxShadow: '0 4px 15px rgba(12, 192, 223, 0.3)' }}>
-                  <Send size={20} />
-                </button>
-              </div>
-            </div>
+            {/* Input Area — isolated component for INP performance */}
+            <ChatInputBar onSend={sendMessage} sending={sending} />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
