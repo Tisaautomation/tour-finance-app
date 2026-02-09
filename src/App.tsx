@@ -22,7 +22,9 @@ function AppContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [soundMuted, setSoundMuted] = useState(false)
+  const [soundMuted, setSoundMuted] = useState(() => {
+    try { return localStorage.getItem('satp_sound_muted') === 'true' } catch { return false }
+  })
   const [unreadCount, setUnreadCount] = useState(0)
   
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -32,7 +34,10 @@ function AppContent() {
   const knownMsgIds = useRef<Set<string>>(new Set())
 
   useEffect(() => { viewRef.current = view }, [view])
-  useEffect(() => { soundMutedRef.current = soundMuted }, [soundMuted])
+  useEffect(() => { 
+    soundMutedRef.current = soundMuted
+    try { localStorage.setItem('satp_sound_muted', String(soundMuted)) } catch {}
+  }, [soundMuted])
 
   // Auto-initialize AudioContext on first user interaction
   const initAudio = useCallback(() => {
@@ -55,9 +60,13 @@ function AppContent() {
     document.addEventListener('click', initAudio)
     document.addEventListener('touchstart', initAudio)
     document.addEventListener('keydown', initAudio)
-    // Also request notification permission silently
+    // Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
+    }
+    // Register Service Worker for background notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
     return () => {
       document.removeEventListener('click', initAudio)
