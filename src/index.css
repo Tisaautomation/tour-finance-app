@@ -438,3 +438,13 @@ button:not(:disabled):active {
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
+
+/* Order detail slide-in panel */
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
