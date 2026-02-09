@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase, ShopifyOrder, Transaction, ROLE_PERMISSIONS } from './lib/supabase'
 import { useAuth, AuthProvider } from './context/AuthContext'
 import Login from './components/Login'
@@ -10,7 +10,7 @@ import UserManagement from './components/UserManagement'
 import ChatInbox from './components/ChatInbox'
 import TourBlocker from './components/TourBlocker'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, Bell, ShieldBan
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX
 } from 'lucide-react'
 
 type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker'
@@ -22,98 +22,125 @@ function AppContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [soundMuted, setSoundMuted] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const soundEnabledRef = useRef(false)
+  const audioInitialized = useRef(false)
+  const soundMutedRef = useRef(false)
   const viewRef = useRef<View>('dashboard')
   const knownMsgIds = useRef<Set<string>>(new Set())
 
-  useEffect(() => {
-    viewRef.current = view
-  }, [view])
+  useEffect(() => { viewRef.current = view }, [view])
+  useEffect(() => { soundMutedRef.current = soundMuted }, [soundMuted])
 
-  const playSound = (soft: boolean) => {
-    try {
-      if (!audioCtxRef.current || !soundEnabledRef.current) return
-      const ctx = audioCtxRef.current
-      if (ctx.state === 'suspended') ctx.resume()
-      
-      const now = ctx.currentTime
-      const volume = soft ? 0.2 : 0.5
-      
-      if (!soft) {
-        const osc1 = ctx.createOscillator()
-        const gain1 = ctx.createGain()
-        osc1.connect(gain1)
-        gain1.connect(ctx.destination)
-        osc1.frequency.value = 800
-        osc1.type = 'sine'
-        gain1.gain.setValueAtTime(volume, now)
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.2)
-        osc1.start(now)
-        osc1.stop(now + 0.2)
-        
-        const osc2 = ctx.createOscillator()
-        const gain2 = ctx.createGain()
-        osc2.connect(gain2)
-        gain2.connect(ctx.destination)
-        osc2.frequency.value = 1000
-        osc2.type = 'sine'
-        gain2.gain.setValueAtTime(volume, now + 0.15)
-        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35)
-        osc2.start(now + 0.15)
-        osc2.stop(now + 0.35)
-      } else {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.frequency.setValueAtTime(1200, now)
-        osc.frequency.exponentialRampToValueAtTime(400, now + 0.06)
-        osc.type = 'sine'
-        gain.gain.setValueAtTime(volume, now)
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
-        osc.start(now)
-        osc.stop(now + 0.1)
-      }
-    } catch (e) {
-      console.log('Sound error:', e)
-    }
-  }
-
-  const showNotification = (title: string, body: string) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, {
-        body,
-        icon: '/images/compass.png',
-        tag: 'chat-message'
-      })
-    }
-  }
-
-  const enableNotifications = async () => {
+  // Auto-initialize AudioContext on first user interaction
+  const initAudio = useCallback(() => {
+    if (audioInitialized.current) return
     try {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       audioCtxRef.current = new AC()
-      if (audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume()
-      }
-      soundEnabledRef.current = true
-      
-      if ('Notification' in window && Notification.permission !== 'granted') {
-        await Notification.requestPermission()
-      }
-      
-      setNotificationsEnabled(true)
-      playSound(false)
+      if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume()
+      audioInitialized.current = true
+      // Remove listeners after init
+      document.removeEventListener('click', initAudio)
+      document.removeEventListener('touchstart', initAudio)
+      document.removeEventListener('keydown', initAudio)
     } catch (e) {
-      console.log('Enable error:', e)
-      setNotificationsEnabled(true)
+      console.log('AudioContext init error:', e)
     }
-  }
+  }, [])
 
+  useEffect(() => {
+    document.addEventListener('click', initAudio)
+    document.addEventListener('touchstart', initAudio)
+    document.addEventListener('keydown', initAudio)
+    // Also request notification permission silently
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+    return () => {
+      document.removeEventListener('click', initAudio)
+      document.removeEventListener('touchstart', initAudio)
+      document.removeEventListener('keydown', initAudio)
+    }
+  }, [initAudio])
+
+  // Sound: new message notification (not in chat) — two-tone ding like WhatsApp
+  const playSoundNotification = useCallback(() => {
+    if (soundMutedRef.current || !audioCtxRef.current) return
+    try {
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+      const now = ctx.currentTime
+
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.connect(gain1); gain1.connect(ctx.destination)
+      osc1.frequency.value = 830
+      osc1.type = 'sine'
+      gain1.gain.setValueAtTime(0.5, now)
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.15)
+      osc1.start(now); osc1.stop(now + 0.15)
+
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.connect(gain2); gain2.connect(ctx.destination)
+      osc2.frequency.value = 1100
+      osc2.type = 'sine'
+      gain2.gain.setValueAtTime(0.5, now + 0.12)
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
+      osc2.start(now + 0.12); osc2.stop(now + 0.3)
+    } catch (e) { console.log('Sound error:', e) }
+  }, [])
+
+  // Sound: message received while in chat — soft pop
+  const playSoundReceived = useCallback(() => {
+    if (soundMutedRef.current || !audioCtxRef.current) return
+    try {
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+      const now = ctx.currentTime
+
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.setValueAtTime(1200, now)
+      osc.frequency.exponentialRampToValueAtTime(600, now + 0.06)
+      osc.type = 'sine'
+      gain.gain.setValueAtTime(0.25, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08)
+      osc.start(now); osc.stop(now + 0.1)
+    } catch (e) { console.log('Sound error:', e) }
+  }, [])
+
+  // Sound: message sent — quick ascending tick
+  const playSoundSent = useCallback(() => {
+    if (soundMutedRef.current || !audioCtxRef.current) return
+    try {
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+      const now = ctx.currentTime
+
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.setValueAtTime(500, now)
+      osc.frequency.exponentialRampToValueAtTime(1400, now + 0.07)
+      osc.type = 'sine'
+      gain.gain.setValueAtTime(0.2, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.09)
+      osc.start(now); osc.stop(now + 0.1)
+    } catch (e) { console.log('Sound error:', e) }
+  }, [])
+
+  const showNotification = useCallback((title: string, body: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/images/compass.png', tag: 'chat-' + Date.now() })
+    }
+  }, [])
+
+  // Realtime listener for new messages
   useEffect(() => {
     if (!user) return
 
@@ -123,9 +150,7 @@ function AppContent() {
         .select('id')
         .order('created_at', { ascending: false })
         .limit(500)
-      if (data) {
-        data.forEach((m: { id: string }) => knownMsgIds.current.add(m.id))
-      }
+      if (data) data.forEach((m: { id: string }) => knownMsgIds.current.add(m.id))
     }
     loadExisting()
 
@@ -134,29 +159,32 @@ function AppContent() {
         { event: 'INSERT', schema: 'public', table: 'messages' }, 
         (payload: { new: { id: string; sender: string; content: string } }) => {
           const msg = payload.new
-          
-          if (msg.sender === 'customer' && !knownMsgIds.current.has(msg.id)) {
-            knownMsgIds.current.add(msg.id)
-            
+          if (knownMsgIds.current.has(msg.id)) return
+          knownMsgIds.current.add(msg.id)
+
+          if (msg.sender === 'customer') {
             const isInChat = viewRef.current === 'chat'
-            
-            playSound(isInChat)
-            showNotification('💬 New Message', msg.content?.substring(0, 50) || 'New message')
-            
-            if (!isInChat) {
+            if (isInChat) {
+              playSoundReceived()
+            } else {
+              playSoundNotification()
               setUnreadCount(prev => prev + 1)
             }
+            showNotification('💬 New Message', msg.content?.substring(0, 50) || 'New message')
+          }
+          
+          // Staff/bot sent message sound when in chat
+          if ((msg.sender === 'staff' || msg.sender === 'bot') && viewRef.current === 'chat') {
+            playSoundSent()
           }
         })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [user])
+  }, [user, playSoundNotification, playSoundReceived, playSoundSent, showNotification])
 
   useEffect(() => {
-    if (view === 'chat') {
-      setUnreadCount(0)
-    }
+    if (view === 'chat') setUnreadCount(0)
   }, [view])
 
   useEffect(() => {
@@ -165,31 +193,20 @@ function AppContent() {
 
   async function fetchData() {
     setLoading(true)
-    
     const { data: ordersData } = await supabase
-      .from('shopify_orders')
-      .select('*')
-      .order('received_at', { ascending: false })
-      .limit(500)
-    
+      .from('shopify_orders').select('*')
+      .order('received_at', { ascending: false }).limit(500)
     if (ordersData) setOrders(ordersData)
 
     const { data: txData } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false })
-      .limit(500)
-    
+      .from('transactions').select('*')
+      .order('date', { ascending: false }).limit(500)
     if (txData) setTransactions(txData)
-    
     setLoading(false)
   }
 
-  if (!user) {
-    return <Login />
-  }
+  if (!user) return <Login />
 
-  // NEW SIDEBAR ORDER: Dashboard, Chat, Blocker, Add Expense, Orders, Users
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'canViewDashboard' },
     { id: 'chat', label: 'Chat Inbox', icon: MessageCircle, permission: 'canViewDashboard', badge: unreadCount },
@@ -201,42 +218,48 @@ function AppContent() {
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
   return (
-    <div className="min-h-screen lg:h-screen w-full lg:overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
-      {/* Notification Banner - only if not enabled */}
-      {!notificationsEnabled && (
-        <div className="fixed top-0 left-0 right-0 z-[100] p-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center">
-          <button onClick={enableNotifications} className="flex items-center justify-center gap-2 w-full font-medium text-sm">
-            <Bell size={16} />
-            🔔 Tap to enable notifications
-          </button>
-        </div>
-      )}
-      
-      {/* Mobile header */}
-      <div className={`lg:hidden neu-card mx-3 mt-3 p-3 flex items-center justify-between no-print ${!notificationsEnabled ? 'mt-12' : ''}`}>
+    <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 25%, #E8EEF5 50%, #DDD6F3 75%, #C4B5E0 100%)' }}>
+      {/* Top Bar — always visible */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 bg-white/80 backdrop-blur-sm border-b border-gray-200/50 z-30">
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setSidebarOpen(!sidebarOpen)} 
+            className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            {sidebarOpen ? <X size={22} className="text-[#2D3748]" /> : <Menu size={22} className="text-[#2D3748]" />}
+          </button>
           <div className="logo-circle-sm">
             <img src="/images/compass.png" alt="SATP" />
           </div>
-          <span className="font-bold gradient-text text-sm">SATP App</span>
+          <span className="font-bold gradient-text text-sm hidden sm:inline">SATP App</span>
         </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-xl hover:bg-gray-100">
-          {sidebarOpen ? <X size={22} className="text-[#2D3748]" /> : <Menu size={22} className="text-[#2D3748]" />}
-        </button>
+
+        <div className="flex items-center gap-2">
+          {/* Sound toggle */}
+          <button
+            onClick={() => {
+              initAudio()
+              setSoundMuted(!soundMuted)
+            }}
+            className={`p-2 rounded-xl transition-colors ${soundMuted ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'}`}
+            title={soundMuted ? 'Sound off — tap to unmute' : 'Sound on — tap to mute'}
+          >
+            {soundMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+          </button>
+        </div>
       </div>
 
-      <div className={`flex flex-1 lg:min-h-0 ${!notificationsEnabled ? 'lg:pt-10' : ''}`}>
-        {/* Sidebar */}
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Sidebar — collapsible on ALL devices */}
         <aside className={`
+          absolute inset-y-0 left-0 z-50
+          w-72 transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0
-          fixed lg:static inset-y-0 left-0 z-50
-          w-64 lg:w-72 transition-transform duration-300
-          h-full p-3 lg:p-4 no-print
+          h-full p-3 no-print
         `}>
-          <div className="neu-card h-full p-4 lg:p-6 flex flex-col">
-            {/* Logo */}
-            <div className="hidden lg:flex items-center gap-3 mb-8">
+          <div className="neu-card h-full p-5 flex flex-col overflow-y-auto">
+            {/* Logo header */}
+            <div className="flex items-center gap-3 mb-6">
               <div className="logo-circle">
                 <img src="/images/compass.png" alt="SATP" />
               </div>
@@ -247,12 +270,12 @@ function AppContent() {
             </div>
             
             {/* Navigation */}
-            <nav className="space-y-1 lg:space-y-2 flex-1">
+            <nav className="space-y-1 flex-1">
               {navItems.map(item => (
                 <button
                   key={item.id}
                   onClick={() => { setView(item.id as View); setSidebarOpen(false) }}
-                  className={`sidebar-item w-full flex items-center gap-3 px-3 lg:px-4 py-3 font-medium transition-all text-sm lg:text-base ${
+                  className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 font-medium transition-all text-sm ${
                     view === item.id ? 'sidebar-active text-white' : 'text-[#2D3748] hover:bg-gray-50'
                   }`}
                 >
@@ -269,25 +292,30 @@ function AppContent() {
 
             {/* User Info */}
             <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center gap-2 lg:gap-3 mb-3 p-2 lg:p-3 rounded-xl bg-gray-50/50">
-                <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl icon-primary flex items-center justify-center">
+              <div className="flex items-center gap-3 mb-3 p-3 rounded-xl bg-gray-50/50">
+                <div className="w-9 h-9 rounded-xl icon-primary flex items-center justify-center">
                   <User size={16} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-[#2D3748] text-xs lg:text-sm truncate">{user.name}</p>
+                  <p className="font-medium text-[#2D3748] text-sm truncate">{user.name}</p>
                   <p className="text-xs text-gray-400 capitalize">{user.role}</p>
                 </div>
               </div>
-              <button onClick={logout} className="w-full flex items-center justify-center gap-2 px-3 py-2 lg:py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors font-medium text-sm">
+              <button onClick={logout} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors font-medium text-sm">
                 <LogOut size={16} /> Sign Out
               </button>
             </div>
           </div>
         </aside>
 
-        {/* Main content */}
-        <main className="flex-1 min-w-0 p-3 lg:p-4 lg:pr-4 w-full flex flex-col lg:min-h-0">
-          <div className="w-full flex-1 lg:min-h-0 flex flex-col">
+        {/* Sidebar backdrop overlay */}
+        {sidebarOpen && (
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={() => setSidebarOpen(false)} />
+        )}
+
+        {/* Main content — always full width */}
+        <main className="flex-1 min-w-0 p-3 lg:p-4 w-full flex flex-col min-h-0">
+          <div className="w-full flex-1 min-h-0 flex flex-col">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="spinner w-12 h-12 lg:w-16 lg:h-16"></div>
@@ -306,11 +334,6 @@ function AppContent() {
           </div>
         </main>
       </div>
-
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
     </div>
   )
 }
