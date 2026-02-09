@@ -60,6 +60,7 @@ export default function OrdersTable({ orders }: Props) {
   const [refundMode, setRefundMode] = useState(false)
   const [refundAmount, setRefundAmount] = useState('')
   const [refundReason, setRefundReason] = useState('')
+  const [auditPopup, setAuditPopup] = useState<{ id: string; by: string; date: string } | null>(null)
 
   const canEdit = hasPermission('canEditOrders')
   const canRefund = hasPermission('canAddRefund')
@@ -157,6 +158,12 @@ export default function OrdersTable({ orders }: Props) {
     if (!selectedOrder || !canEdit) return
     setSaving(true)
 
+    // Build change description for audit
+    const changes: string[] = []
+    if (editData.status !== selectedOrder.status) changes.push(`status: ${selectedOrder.status}→${editData.status}`)
+    if (editData.payment_status !== selectedOrder.payment_status) changes.push(`payment: ${selectedOrder.payment_status}→${editData.payment_status}`)
+    if (editData.payment_method !== selectedOrder.payment_method) changes.push(`method: ${selectedOrder.payment_method}→${editData.payment_method}`)
+
     // Update shopify_orders
     await supabase.from('shopify_orders').update({
       status: editData.status,
@@ -175,10 +182,25 @@ export default function OrdersTable({ orders }: Props) {
       }).eq('id', booking.id)
     }
 
+    // Log the edit as audit transaction
+    if (changes.length > 0) {
+      await supabase.from('transactions').insert({
+        date: new Date().toISOString(),
+        type: 'fee',
+        category: 'order_edit',
+        amount: 0,
+        currency: 'THB',
+        booking_id: booking?.id || null,
+        description: `Edit #${selectedOrder.shopify_order_number}: ${changes.join(', ')}`,
+        status: 'completed',
+        created_by: user?.email || 'unknown'
+      })
+    }
+
     setEditing(false)
     setSaving(false)
-    // Refresh
     setSelectedOrder({ ...selectedOrder, status: editData.status, payment_status: editData.payment_status, payment_method: editData.payment_method })
+    loadOrderDetail({ ...selectedOrder, status: editData.status, payment_status: editData.payment_status, payment_method: editData.payment_method })
   }
 
   const submitRefund = async () => {
@@ -188,6 +210,7 @@ export default function OrdersTable({ orders }: Props) {
     const amount = parseFloat(refundAmount)
     if (isNaN(amount) || amount <= 0) { setSaving(false); return }
 
+    // Record the refund action (money is handled manually outside the app)
     await supabase.from('transactions').insert({
       date: new Date().toISOString(),
       type: 'refund',
@@ -195,9 +218,9 @@ export default function OrdersTable({ orders }: Props) {
       amount: -Math.abs(amount),
       currency: 'THB',
       booking_id: booking?.id || null,
-      description: `Refund #${selectedOrder.shopify_order_number}: ${refundReason || 'No reason'}`,
-      status: 'completed',
-      created_by: user?.email
+      description: `Refund #${selectedOrder.shopify_order_number}: ${refundReason || 'No reason provided'}`,
+      status: 'recorded',
+      created_by: user?.email || 'unknown'
     })
 
     // Update payment status
@@ -563,22 +586,46 @@ export default function OrdersTable({ orders }: Props) {
                           </div>
                         )}
 
-                        {/* === TRANSACTIONS === */}
+                        {/* === TRANSACTIONS / AUDIT LOG === */}
                         {orderTransactions.length > 0 && (
                           <div className="rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="bg-gray-50 px-4 py-2.5 flex items-center gap-2 border-b border-gray-100">
                               <DollarSign size={16} className="text-emerald-500" />
-                              <span className="font-semibold text-sm text-gray-700">Transactions</span>
+                              <span className="font-semibold text-sm text-gray-700">Transactions & Audit Log</span>
                             </div>
                             <div className="divide-y divide-gray-50">
                               {orderTransactions.map(tx => (
-                                <div key={tx.id} className="p-4 flex items-center justify-between">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-800 capitalize">{tx.type}</p>
-                                    <p className="text-xs text-gray-400">{tx.description}</p>
-                                    <p className="text-xs text-gray-400">{formatDate(tx.date)}</p>
+                                <div key={tx.id} className="p-4 flex items-center gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${tx.type === 'refund' ? 'bg-red-100 text-red-600' : tx.category === 'order_edit' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                                        {tx.type === 'refund' ? '↩ Refund' : tx.category === 'order_edit' ? '✏️ Edit' : tx.type}
+                                      </span>
+                                      {tx.status === 'recorded' && <span className="text-[10px] text-orange-500 font-medium">(manual)</span>}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1 truncate">{tx.description}</p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(tx.date)}</p>
                                   </div>
-                                  <span className={`text-sm font-bold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(tx.amount)}</span>
+                                  {tx.amount !== 0 && (
+                                    <span className={`text-sm font-bold flex-shrink-0 ${tx.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(tx.amount)}</span>
+                                  )}
+                                  {/* WHO DID IT — clickable icon */}
+                                  <div className="relative flex-shrink-0">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setAuditPopup(auditPopup?.id === tx.id ? null : { id: tx.id, by: tx.created_by || 'System', date: tx.created_at || tx.date }) }}
+                                      className="w-7 h-7 rounded-full bg-purple-50 hover:bg-purple-100 flex items-center justify-center transition-colors"
+                                      title={tx.created_by || 'Unknown'}
+                                    >
+                                      <User size={13} className="text-purple-400" />
+                                    </button>
+                                    {auditPopup?.id === tx.id && (
+                                      <div className="absolute right-0 bottom-full mb-1 bg-[#2D3748] text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap z-20">
+                                        <p className="font-semibold">{auditPopup.by}</p>
+                                        <p className="text-gray-300 text-[10px]">{formatDateTime(auditPopup.date)}</p>
+                                        <div className="absolute bottom-0 right-3 translate-y-1/2 rotate-45 w-2 h-2 bg-[#2D3748]" />
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -619,20 +666,22 @@ export default function OrdersTable({ orders }: Props) {
                           <div className="rounded-2xl border-2 border-red-200 overflow-hidden bg-red-50">
                             <div className="bg-red-100 px-4 py-2.5 flex items-center gap-2">
                               <XCircle size={16} className="text-red-500" />
-                              <span className="font-semibold text-sm text-red-700">Process Refund</span>
+                              <span className="font-semibold text-sm text-red-700">Record Refund</span>
                             </div>
                             <div className="p-4 space-y-3">
+                              <p className="text-xs text-red-500">This only records the refund. Actual bank transfer must be done manually.</p>
                               <div>
-                                <label className="text-xs text-red-600 font-medium">Refund Amount (THB)</label>
+                                <label className="text-xs text-red-600 font-medium">Amount Refunded (THB)</label>
                                 <input type="number" value={refundAmount} onChange={e => setRefundAmount(e.target.value)} placeholder={`Max: ${selectedOrder.total_amount}`} className="w-full mt-1 px-3 py-2 border border-red-200 rounded-xl text-sm" max={selectedOrder.total_amount} />
                               </div>
                               <div>
                                 <label className="text-xs text-red-600 font-medium">Reason</label>
                                 <input type="text" value={refundReason} onChange={e => setRefundReason(e.target.value)} placeholder="Reason for refund..." className="w-full mt-1 px-3 py-2 border border-red-200 rounded-xl text-sm" />
                               </div>
+                              <p className="text-[11px] text-gray-400">Recorded by: {user?.email}</p>
                               <div className="flex gap-2">
                                 <button onClick={submitRefund} disabled={saving || !refundAmount} className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-medium disabled:opacity-50">
-                                  {saving ? 'Processing...' : 'Confirm Refund'}
+                                  {saving ? 'Recording...' : 'Record Refund'}
                                 </button>
                                 <button onClick={() => setRefundMode(false)} className="px-4 py-2 bg-gray-100 rounded-xl text-sm">Cancel</button>
                               </div>
@@ -657,7 +706,7 @@ export default function OrdersTable({ orders }: Props) {
                           )}
                           {canRefund && !refundMode && !editing && (
                             <button onClick={() => setRefundMode(true)} className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 border border-red-200 transition-colors">
-                              <XCircle size={16} /> Refund
+                              <XCircle size={16} /> Record Refund
                             </button>
                           )}
                         </div>
