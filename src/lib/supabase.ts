@@ -88,11 +88,16 @@ export interface Provider {
   id: string
   provider_id: string
   name: string
-  email: string | null
+  line_user_id: string | null
   phone: string | null
+  email: string | null
   commission_rate: number
   is_active: boolean
   is_available: boolean
+  notes: string | null
+  pricing: Record<string, number> | null
+  created_at: string
+  updated_at: string
 }
 
 export interface LineItem {
@@ -120,6 +125,7 @@ export const ROLE_PERMISSIONS = {
     canSendEmails: true,
     canViewAllProviders: true,
     canManageBlocks: true,
+    canManageProviders: true,
   },
   manager: {
     canViewDashboard: true,
@@ -134,6 +140,7 @@ export const ROLE_PERMISSIONS = {
     canSendEmails: true,
     canViewAllProviders: true,
     canManageBlocks: true,
+    canManageProviders: true,
   },
   staff: {
     canViewDashboard: true,
@@ -148,6 +155,7 @@ export const ROLE_PERMISSIONS = {
     canSendEmails: false,
     canViewAllProviders: false,
     canManageBlocks: false,
+    canManageProviders: false,
   },
   provider: {
     canViewDashboard: true,
@@ -162,5 +170,6 @@ export const ROLE_PERMISSIONS = {
     canSendEmails: false,
     canViewAllProviders: false,
     canManageBlocks: false,
+    canManageProviders: false,
   },
 }
