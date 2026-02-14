@@ -134,6 +134,8 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
 // Isolated input bar — prevents full ChatInbox re-render on every keystroke (INP fix)
 function ChatInputBar({ onSend, sending }: { onSend: (msg: string) => void; sending: boolean }) {
   const [text, setText] = useState('')
+  const [showEmoji, setShowEmoji] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const insertEmoji = useCallback((emoji: string) => {
     setText(prev => prev + emoji)
