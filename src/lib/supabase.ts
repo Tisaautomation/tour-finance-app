@@ -89,6 +89,7 @@ export interface Provider {
   provider_id: string
   name: string
   line_user_id: string | null
+  line_group_id: string | null
   phone: string | null
   email: string | null
   commission_rate: number
