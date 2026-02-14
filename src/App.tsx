@@ -9,11 +9,12 @@ import TransactionsTable from './components/TransactionsTable'
 import UserManagement from './components/UserManagement'
 import ChatInbox from './components/ChatInbox'
 import TourBlocker from './components/TourBlocker'
+import ProvidersTable from './components/ProvidersTable'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX, Truck
 } from 'lucide-react'
 
-type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker'
+type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker' | 'providers'
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -223,6 +224,7 @@ function AppContent() {
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
     { id: 'orders', label: 'Manage Orders', icon: ShoppingCart, permission: 'canViewOrders' },
     { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
+    { id: 'providers', label: 'Providers', icon: Truck, permission: 'canManageProviders' },
     { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
   ].filter(item => hasPermission(item.permission as keyof typeof ROLE_PERMISSIONS.admin))
 
@@ -336,6 +338,7 @@ function AppContent() {
                 {view === 'blocker' && <TourBlocker />}
                 {view === 'orders' && <OrdersTable orders={orders} />}
                 {view === 'transactions' && <TransactionsTable transactions={transactions} />}
+                {view === 'providers' && <ProvidersTable />}
                 {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
                 {view === 'users' && <UserManagement />}
               </>
