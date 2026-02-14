@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { 
   DollarSign, TrendingUp, TrendingDown, ShoppingCart, Calendar,
   ArrowUpRight, ArrowDownRight, Filter, BarChart3, Download,
-  TrendingUp as LineIcon, Mail, RefreshCw, X, Plus, Send, Percent, Users
+  TrendingUp as LineIcon, Mail, RefreshCw, X, Plus, Send, Percent, Users, Truck
 } from 'lucide-react'
 import { 
   Area, BarChart, Bar, Line, PieChart, Pie, Cell,
@@ -30,6 +30,7 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [emailRecipients, setEmailRecipients] = useState<string[]>([])
   const [newEmail, setNewEmail] = useState('')
+  const [providerStats, setProviderStats] = useState({ total: 0, active: 0, available: 0, withPricing: 0 })
   const [showFilters, setShowFilters] = useState(true)
 
   // Filters
@@ -50,11 +51,24 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
   // Load saved email recipients
   useEffect(() => {
     loadEmailRecipients()
+    loadProviderStats()
   }, [])
 
   async function loadEmailRecipients() {
     const { data } = await supabase.from('email_recipients').select('email').order('created_at', { ascending: true })
     if (data) setEmailRecipients(data.map(r => r.email))
+  }
+
+  async function loadProviderStats() {
+    const { data } = await supabase.from('providers').select('is_active, is_available, pricing')
+    if (data) {
+      setProviderStats({
+        total: data.length,
+        active: data.filter(p => p.is_active).length,
+        available: data.filter(p => p.is_available).length,
+        withPricing: data.filter(p => p.pricing && Object.keys(p.pricing).length > 0).length
+      })
+    }
   }
 
   async function addEmailRecipient() {
@@ -549,6 +563,62 @@ export default function Dashboard({ orders, transactions, onRefresh }: Props) {
           </div>
         </div>
       </div>
+
+      {/* KPI Cards Row 3 - Providers */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Total Providers</p>
+              <p className="text-2xl font-bold text-[#2D3748]">{providerStats.total}</p>
+              <p className="text-xs text-gray-400 mt-1">{providerStats.active} active</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-400 to-orange-300 flex items-center justify-center">
+              <Truck className="text-white" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Active Providers</p>
+              <p className="text-2xl font-bold text-green-600">{providerStats.active}</p>
+              <p className="text-xs text-gray-400 mt-1">{providerStats.total > 0 ? ((providerStats.active / providerStats.total) * 100).toFixed(0) : 0}% of total</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center">
+              <ArrowUpRight className="text-green-600" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Available Now</p>
+              <p className="text-2xl font-bold text-[#00CED1]">{providerStats.available}</p>
+              <p className="text-xs text-gray-400 mt-1">{providerStats.active > 0 ? ((providerStats.available / providerStats.active) * 100).toFixed(0) : 0}% of active</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#00CED1]/20 to-[#00CED1]/10 flex items-center justify-center">
+              <Users className="text-[#00CED1]" size={20} />
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">With Net Pricing</p>
+              <p className="text-2xl font-bold text-[#9370DB]">{providerStats.withPricing}</p>
+              <p className="text-xs text-gray-400 mt-1">{providerStats.total > 0 ? ((providerStats.withPricing / providerStats.total) * 100).toFixed(0) : 0}% configured</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#9370DB]/20 to-[#9370DB]/10 flex items-center justify-center">
+              <DollarSign className="text-[#9370DB]" size={20} />
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       {/* Today Card */}
       <div className="neu-card p-6 mb-6 today-gradient text-white relative overflow-hidden">
