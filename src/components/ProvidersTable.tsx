@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Search, Download, Plus, X, Users, DollarSign, Phone, Mail, Edit2, Trash2, ChevronDown, ChevronUp, Save } from 'lucide-react'
+import { Search, Download, Plus, X, Users, DollarSign, Phone, Mail, Edit2, Trash2, ChevronDown, ChevronUp, Save, MessageSquare, Hash } from 'lucide-react'
 
 interface Provider {
   id: string
   provider_id: string
   name: string
   line_user_id: string | null
+  line_group_id: string | null
   phone: string | null
   email: string | null
   commission_rate: number
@@ -25,6 +26,7 @@ interface ProviderFormData {
   phone: string
   email: string
   line_user_id: string
+  line_group_id: string
   commission_rate: number
   is_active: boolean
   is_available: boolean
@@ -37,6 +39,7 @@ const emptyForm: ProviderFormData = {
   phone: '',
   email: '',
   line_user_id: '',
+  line_group_id: '',
   commission_rate: 0,
   is_active: true,
   is_available: true,
@@ -97,6 +100,7 @@ export default function ProvidersTable() {
       phone: provider.phone || '',
       email: provider.email || '',
       line_user_id: provider.line_user_id || '',
+      line_group_id: provider.line_group_id || '',
       commission_rate: provider.commission_rate,
       is_active: provider.is_active,
       is_available: provider.is_available,
@@ -116,35 +120,31 @@ export default function ProvidersTable() {
     setError('')
 
     try {
+      const payload: Record<string, unknown> = {
+        provider_id: form.provider_id.trim(),
+        name: form.name.trim(),
+        phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
+        line_user_id: form.line_user_id.trim() || null,
+        commission_rate: form.commission_rate,
+        is_active: form.is_active,
+        is_available: form.is_available,
+        notes: form.notes.trim() || null,
+      }
+
+      // Only include line_group_id if the column exists (graceful handling)
+      if (form.line_group_id.trim()) {
+        payload.line_group_id = form.line_group_id.trim()
+      }
+
       if (editingId) {
         const { error: err } = await supabase.from('providers')
-          .update({
-            provider_id: form.provider_id.trim(),
-            name: form.name.trim(),
-            phone: form.phone.trim() || null,
-            email: form.email.trim() || null,
-            line_user_id: form.line_user_id.trim() || null,
-            commission_rate: form.commission_rate,
-            is_active: form.is_active,
-            is_available: form.is_available,
-            notes: form.notes.trim() || null,
-            updated_at: new Date().toISOString()
-          })
+          .update({ ...payload, updated_at: new Date().toISOString() })
           .eq('id', editingId)
         if (err) throw err
       } else {
         const { error: err } = await supabase.from('providers')
-          .insert({
-            provider_id: form.provider_id.trim(),
-            name: form.name.trim(),
-            phone: form.phone.trim() || null,
-            email: form.email.trim() || null,
-            line_user_id: form.line_user_id.trim() || null,
-            commission_rate: form.commission_rate,
-            is_active: form.is_active,
-            is_available: form.is_available,
-            notes: form.notes.trim() || null
-          })
+          .insert(payload)
         if (err) throw err
       }
       setShowForm(false)
@@ -187,9 +187,9 @@ export default function ProvidersTable() {
   const exportCSV = () => {
     if (!hasPermission('canExport')) return
     const csv = [
-      ['Provider ID', 'Name', 'Phone', 'Email', 'LINE ID', 'Commission %', 'Active', 'Available', 'Notes'],
+      ['Provider ID', 'Name', 'Phone', 'Email', 'LINE User ID', 'LINE Group ID', 'Commission %', 'Active', 'Available', 'Notes'],
       ...filtered.map(p => [
-        p.provider_id, p.name, p.phone || '', p.email || '', p.line_user_id || '',
+        p.provider_id, p.name, p.phone || '', p.email || '', p.line_user_id || '', p.line_group_id || '',
         p.commission_rate, p.is_active ? 'Yes' : 'No', p.is_available ? 'Yes' : 'No', p.notes || ''
       ])
     ].map(row => row.map(c => `"${c}"`).join(',')).join('\n')
@@ -303,9 +303,10 @@ export default function ProvidersTable() {
                       <span className="font-bold text-gray-800 truncate">{provider.name}</span>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">{provider.provider_id}</span>
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 flex-wrap">
                       {provider.phone && <span className="flex items-center gap-1"><Phone size={12} />{provider.phone}</span>}
                       {provider.email && <span className="flex items-center gap-1 truncate"><Mail size={12} />{provider.email}</span>}
+                      {provider.line_group_id && <span className="flex items-center gap-1"><MessageSquare size={12} />LINE Group</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -325,12 +326,24 @@ export default function ProvidersTable() {
                     {/* Provider Details */}
                     <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">LINE Group ID</p>
+                        <p className="text-sm font-medium text-gray-700 break-all font-mono">{provider.line_group_id || '—'}</p>
+                      </div>
+                      <div>
                         <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">LINE User ID</p>
-                        <p className="text-sm font-medium text-gray-700">{provider.line_user_id || '—'}</p>
+                        <p className="text-sm font-medium text-gray-700 break-all font-mono">{provider.line_user_id || '—'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Commission Rate</p>
                         <p className="text-sm font-medium text-gray-700">{provider.commission_rate}%</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Email</p>
+                        <p className="text-sm font-medium text-gray-700">{provider.email || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Phone</p>
+                        <p className="text-sm font-medium text-gray-700">{provider.phone || '—'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Since</p>
@@ -365,7 +378,7 @@ export default function ProvidersTable() {
                       )}
                       {/* Add pricing form */}
                       <div className="flex gap-2">
-                        <input type="text" placeholder="Tour name / program" value={expandedId === provider.id ? pricingTour : ''} onChange={e => setPricingTour(e.target.value)}
+                        <input type="text" placeholder="Tour / program (e.g. TIK34-Private)" value={expandedId === provider.id ? pricingTour : ''} onChange={e => setPricingTour(e.target.value)}
                           className="neu-input flex-1 px-3 py-2 text-sm" onClick={e => e.stopPropagation()} />
                         <input type="number" placeholder="Net THB" value={expandedId === provider.id ? pricingAmount : ''} onChange={e => setPricingAmount(e.target.value)}
                           className="neu-input w-28 px-3 py-2 text-sm" onClick={e => e.stopPropagation()} />
@@ -417,14 +430,18 @@ export default function ProvidersTable() {
             <div className="space-y-4">
               {/* Provider ID */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Provider ID</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  <Hash size={12} className="inline mr-1" />Provider ID *
+                </label>
                 <input type="text" value={form.provider_id} onChange={e => setForm({ ...form, provider_id: e.target.value })}
-                  placeholder="e.g. PROV-001, TIK-SPEED" className="neu-input w-full px-4 py-3" />
+                  placeholder="e.g. TIK01, TIK34, TIK47" className="neu-input w-full px-4 py-3" />
               </div>
 
               {/* Name */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Name</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  <Users size={12} className="inline mr-1" />Name *
+                </label>
                 <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="Provider company or person name" className="neu-input w-full px-4 py-3" />
               </div>
@@ -432,42 +449,62 @@ export default function ProvidersTable() {
               {/* Phone + Email row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Phone</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    <Phone size={12} className="inline mr-1" />Phone
+                  </label>
                   <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                     placeholder="+66..." className="neu-input w-full px-4 py-3" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    <Mail size={12} className="inline mr-1" />Email
+                  </label>
                   <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                     placeholder="provider@email.com" className="neu-input w-full px-4 py-3" />
                 </div>
               </div>
 
-              {/* LINE User ID */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">LINE User ID</label>
-                <input type="text" value={form.line_user_id} onChange={e => setForm({ ...form, line_user_id: e.target.value })}
-                  placeholder="U1234567890abcdef..." className="neu-input w-full px-4 py-3" />
+              {/* LINE IDs Section - neumorphic inset group */}
+              <div className="rounded-2xl p-4" style={{ background: '#d8d8dd', boxShadow: 'inset 2px 2px 5px #b8b8bd, inset -2px -2px 5px #f8f8fb' }}>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1">
+                  <MessageSquare size={12} /> LINE Integration
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">LINE Group ID</label>
+                    <input type="text" value={form.line_group_id} onChange={e => setForm({ ...form, line_group_id: e.target.value })}
+                      placeholder="Ccb9bf737da51a45e5bf7d1218fdc18f3" className="neu-input w-full px-4 py-3 text-sm font-mono" />
+                    <p className="text-xs text-gray-400 mt-1">Group chat ID for provider notifications</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">LINE User ID</label>
+                    <input type="text" value={form.line_user_id} onChange={e => setForm({ ...form, line_user_id: e.target.value })}
+                      placeholder="U1234567890abcdef..." className="neu-input w-full px-4 py-3 text-sm font-mono" />
+                    <p className="text-xs text-gray-400 mt-1">Individual user ID for direct messages</p>
+                  </div>
+                </div>
               </div>
 
               {/* Commission Rate */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Commission Rate (%)</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  <DollarSign size={12} className="inline mr-1" />Commission Rate (%)
+                </label>
                 <input type="number" value={form.commission_rate} onChange={e => setForm({ ...form, commission_rate: parseFloat(e.target.value) || 0 })}
                   min="0" max="100" step="0.5" className="neu-input w-full px-4 py-3" />
               </div>
 
               {/* Toggles */}
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex items-center gap-3 cursor-pointer neu-card p-3 rounded-xl">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-colors" style={{ background: form.is_active ? '#d4edda' : '#e8e8ed', boxShadow: 'inset 2px 2px 5px #c8c8cd, inset -2px -2px 5px #fff' }}>
                   <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })}
                     className="w-5 h-5 rounded accent-green-500" />
-                  <span className="text-sm font-medium text-gray-700">Active</span>
+                  <span className={`text-sm font-medium ${form.is_active ? 'text-green-700' : 'text-gray-500'}`}>Active</span>
                 </label>
-                <label className="flex items-center gap-3 cursor-pointer neu-card p-3 rounded-xl">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-colors" style={{ background: form.is_available ? '#d1ecf1' : '#e8e8ed', boxShadow: 'inset 2px 2px 5px #c8c8cd, inset -2px -2px 5px #fff' }}>
                   <input type="checkbox" checked={form.is_available} onChange={e => setForm({ ...form, is_available: e.target.checked })}
                     className="w-5 h-5 rounded accent-blue-500" />
-                  <span className="text-sm font-medium text-gray-700">Available</span>
+                  <span className={`text-sm font-medium ${form.is_available ? 'text-blue-700' : 'text-gray-500'}`}>Available</span>
                 </label>
               </div>
 
