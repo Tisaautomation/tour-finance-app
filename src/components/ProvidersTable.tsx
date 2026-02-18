@@ -96,7 +96,7 @@ export default function ProvidersTable() {
 
   const fetchProviders = async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('providers').select('*').order('name')
+    const { data, error } = await supabase.from('providers').select('*').order('provider_id')
     if (data) setProviders(data)
     if (error) console.error('Fetch providers error:', error)
     setLoading(false)
