@@ -11,7 +11,7 @@ import ChatInbox from './components/ChatInbox'
 import TourBlocker from './components/TourBlocker'
 import ProvidersTable from './components/ProvidersTable'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX, Truck, DollarSign
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX, Truck
 } from 'lucide-react'
 
 type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker' | 'providers'
