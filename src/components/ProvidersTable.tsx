@@ -126,7 +126,7 @@ export default function ProvidersTable() {
           const obj: Record<string, string> = {}
           headers.forEach((h: string, i: number) => (obj[h] = row[i] || ''))
           return { tour_id: obj.tk_id || '', tour_name: obj.Short_Name || obj.Tour_Name || '' }
-        }).filter(t => t.tour_id)
+        }).filter((t: { tour_id: string }) => t.tour_id)
         setAllTours(tours)
       }
     } catch (e) { console.error('Fetch tours error:', e) }
@@ -185,7 +185,6 @@ export default function ProvidersTable() {
     setSavingPrices(true)
     try {
       // Find next empty row or append
-      const nextRow = netPrices.length + 2
       const newRow = [tour.tour_id, tour.tour_name, providerId, providerName, '1', '', '', '']
       const r = await fetch(WEBHOOK, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
