@@ -83,6 +83,7 @@ export default function ProvidersTable() {
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
 
   // Net prices state
   const [netPrices, setNetPrices] = useState<NetPriceRow[]>([])
@@ -93,6 +94,14 @@ export default function ProvidersTable() {
   const [addTourId, setAddTourId] = useState('')
 
   useEffect(() => { fetchProviders(); fetchNetPrices(); fetchTours() }, [])
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.relative')) setShowDropdown(false)
+    }
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [])
 
   const fetchProviders = async () => {
     setLoading(true)
@@ -342,8 +351,26 @@ export default function ProvidersTable() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input type="text" placeholder="Search providers..." value={search} onChange={e => setSearch(e.target.value)} className="neu-input w-full pl-11 pr-4 py-3" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+          <input type="text" placeholder="Search by ID or name..." value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setShowDropdown(true)}
+            className="neu-input w-full pl-11 pr-4 py-3" />
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-2xl z-50"
+              style={{ background: '#e8e8ed', boxShadow: '6px 6px 16px #b8b8bd, -6px -6px 16px #fff' }}>
+              {providers
+                .filter(p => !search || p.provider_id.toLowerCase().includes(search.toLowerCase()) || p.name.toLowerCase().includes(search.toLowerCase()))
+                .map(p => (
+                <button key={p.id} onClick={() => { setSearch(p.provider_id); setShowDropdown(false) }}
+                  className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-white/60 transition-colors border-b border-gray-200/30 last:border-0">
+                  <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-purple-100 text-purple-700 min-w-[52px] text-center">{p.provider_id}</span>
+                  <span className="text-sm text-gray-700 truncate">{p.name}</span>
+                  <span className="ml-auto text-xs text-gray-400">{getProviderPrices(p.provider_id).length} tours</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="neu-input px-4 py-3">
           <option value="">All Status</option>
