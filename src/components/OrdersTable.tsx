@@ -357,7 +357,7 @@ export default function OrdersTable({ orders }: Props) {
                     {/* Row 1: Order # + Amount */}
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-bold text-[#9370DB] text-sm">#{order.shopify_order_number}</span>
+                        <span className="font-bold text-[#9370DB] text-sm">#TIK{order.shopify_order_number}</span>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${badge.color}`}>
                           <BadgeIcon size={12} />
                           {badge.label}
@@ -413,7 +413,7 @@ export default function OrdersTable({ orders }: Props) {
                   {/* Header */}
                   <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-[#2D3748]">Order #{selectedOrder.shopify_order_number}</h2>
+                      <h2 className="text-xl font-bold text-[#2D3748]">Order #TIK{selectedOrder.shopify_order_number}</h2>
                       <p className="text-xs text-gray-400">Received {formatDateTime(selectedOrder.received_at)}</p>
                     </div>
                     <button onClick={() => setSelectedOrder(null)} className="p-2 rounded-xl hover:bg-gray-100"><X size={22} /></button>
