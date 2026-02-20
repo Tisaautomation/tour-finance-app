@@ -298,7 +298,7 @@ export default function PaymentsTable() {
                   {/* Order info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-gray-800">#{eo.order.shopify_order_number}</span>
+                      <span className="font-bold text-gray-800">#TIK{eo.order.shopify_order_number}</span>
                       <span className="text-sm text-gray-600 truncate">{eo.order.customer_name}</span>
                       {eo.payments.length > 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">{eo.payments.length} tx</span>}
                     </div>
