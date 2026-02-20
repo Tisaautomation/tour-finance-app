@@ -1,1 +1,2 @@
-Y29uc29sZS5sb2coJ2hlbGxvIHdvcmxkJyk7Cg==
+// This is actual TypeScript
+console.log('working!');
