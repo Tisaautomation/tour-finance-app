@@ -59,16 +59,16 @@ export default function ExpenseForm({ onSuccess }: Props) {
         <p className="text-gray-500 mt-1">Record business expenses and costs</p>
       </div>
 
-      <div className="max-w-5xl">
-        <form onSubmit={handleSubmit} className="neu-card p-8 space-y-6">
+      <div className="w-full">
+        <form onSubmit={handleSubmit} className="neu-card p-6 lg:p-8 space-y-6">
           {/* Type */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">Transaction Type</label>
-            <div className="flex gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {['expense', 'refund'].map(type => (
                 <button key={type} type="button"
                   onClick={() => setFormData({ ...formData, type })}
-                  className={`flex-1 py-4 px-6 rounded-xl font-medium transition-all ${
+                  className={`py-3 sm:py-4 px-4 sm:px-6 rounded-xl font-medium transition-all ${
                     formData.type === type 
                       ? 'today-gradient text-white shadow-lg' 
                       : 'neu-input text-gray-600 hover:bg-gray-50'
@@ -82,17 +82,17 @@ export default function ExpenseForm({ onSuccess }: Props) {
           {/* Category */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">Category</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {categories.map(cat => (
                 <button key={cat.value} type="button"
                   onClick={() => setFormData({ ...formData, category: cat.value })}
-                  className={`p-4 rounded-xl font-medium text-left transition-all ${
+                  className={`p-3 sm:p-4 rounded-xl font-medium text-left transition-all ${
                     formData.category === cat.value 
                       ? 'bg-gradient-to-r from-[#9370DB]/20 to-[#00CED1]/20 border-2 border-[#9370DB]' 
                       : 'neu-flat hover:shadow-lg'
                   }`}>
                   <span className="text-2xl mb-1 block">{cat.icon}</span>
-                  <span className="text-sm text-[#2D3748]">{cat.label}</span>
+                  <span className="text-xs sm:text-sm text-[#2D3748]">{cat.label}</span>
                 </button>
               ))}
             </div>
@@ -106,7 +106,7 @@ export default function ExpenseForm({ onSuccess }: Props) {
                 {adPlatforms.map(p => (
                   <button key={p} type="button"
                     onClick={() => setFormData({ ...formData, ad_platform: p })}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                    className={`px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                       formData.ad_platform === p 
                         ? 'bg-[#9370DB] text-white' 
                         : 'neu-flat text-gray-600 hover:bg-gray-100'
@@ -118,35 +118,33 @@ export default function ExpenseForm({ onSuccess }: Props) {
             </div>
           )}
 
-          {/* Amount */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
+          {/* Amount + Currency + Date — responsive row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1">
               <label className="block text-sm font-semibold text-gray-700 mb-3">Amount</label>
               <div className="relative">
                 <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                 <input type="number" step="0.01" value={formData.amount} placeholder="0.00"
                   onChange={e => setFormData({ ...formData, amount: e.target.value })}
-                  className="neu-input w-full pl-12 pr-4 py-4 text-lg font-semibold" required />
+                  className="neu-input w-full pl-12 pr-4 py-3 sm:py-4 text-lg font-semibold" required />
               </div>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-3">Currency</label>
               <select value={formData.currency} onChange={e => setFormData({ ...formData, currency: e.target.value })}
-                className="neu-input w-full px-4 py-4">
+                className="neu-input w-full px-4 py-3 sm:py-4">
                 <option value="THB">🇹🇭 THB</option>
                 <option value="USD">🇺🇸 USD</option>
                 <option value="EUR">🇪🇺 EUR</option>
               </select>
             </div>
-          </div>
-
-          {/* Date */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })}
-                className="neu-input w-full pl-12 pr-4 py-4" required />
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Date</label>
+              <div className="relative">
+                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })}
+                  className="neu-input w-full pl-12 pr-4 py-3 sm:py-4" required />
+              </div>
             </div>
           </div>
 
@@ -157,13 +155,13 @@ export default function ExpenseForm({ onSuccess }: Props) {
               <FileText className="absolute left-4 top-4 text-gray-400" size={20} />
               <textarea value={formData.description} placeholder="e.g., Facebook ads for January campaign"
                 onChange={e => setFormData({ ...formData, description: e.target.value })} rows={3}
-                className="neu-input w-full pl-12 pr-4 py-4" required />
+                className="neu-input w-full pl-12 pr-4 py-3 sm:py-4 resize-none" required />
             </div>
           </div>
 
           {/* Submit */}
           <button type="submit" disabled={loading}
-            className="neu-btn w-full flex items-center justify-center gap-3 py-4 text-lg font-semibold disabled:opacity-50">
+            className="neu-btn w-full flex items-center justify-center gap-3 py-3 sm:py-4 text-base sm:text-lg font-semibold disabled:opacity-50">
             {loading ? (<><Loader2 size={22} className="animate-spin" /> Saving...</>) : (<><Save size={22} /> Save Expense</>)}
           </button>
         </form>
