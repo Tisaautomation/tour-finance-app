@@ -10,11 +10,12 @@ import UserManagement from './components/UserManagement'
 import ChatInbox from './components/ChatInbox'
 import TourBlocker from './components/TourBlocker'
 import ProvidersTable from './components/ProvidersTable'
+import PaymentsTable from './components/PaymentsTable'
 import { 
-  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX, Truck
+  LayoutDashboard, ShoppingCart, Receipt, PlusCircle, Menu, X, LogOut, User, Users, MessageCircle, ShieldBan, Volume2, VolumeX, Truck, Banknote
 } from 'lucide-react'
 
-type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker' | 'providers'
+type View = 'dashboard' | 'orders' | 'transactions' | 'add-expense' | 'users' | 'chat' | 'blocker' | 'providers' | 'payments'
 
 function AppContent() {
   const { user, logout, hasPermission } = useAuth()
@@ -223,6 +224,7 @@ function AppContent() {
     { id: 'blocker', label: 'Tour Blocker', icon: ShieldBan, permission: 'canManageBlocks' },
     { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, permission: 'canAddExpense' },
     { id: 'orders', label: 'Manage Orders', icon: ShoppingCart, permission: 'canViewOrders' },
+    { id: 'payments', label: 'Payments', icon: Banknote, permission: 'canManagePayments' },
     { id: 'transactions', label: 'Transactions', icon: Receipt, permission: 'canViewTransactions' },
     { id: 'providers', label: 'Providers', icon: Truck, permission: 'canManageProviders' },
     { id: 'users', label: 'Users', icon: Users, permission: 'canManageUsers' },
@@ -339,6 +341,7 @@ function AppContent() {
                 {view === 'orders' && <OrdersTable orders={orders} />}
                 {view === 'transactions' && <TransactionsTable transactions={transactions} />}
                 {view === 'providers' && <ProvidersTable />}
+                {view === 'payments' && <PaymentsTable />}
                 {view === 'add-expense' && <ExpenseForm onSuccess={() => { fetchData(); setView('transactions') }} />}
                 {view === 'users' && <UserManagement />}
               </>
