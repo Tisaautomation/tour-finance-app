@@ -84,6 +84,29 @@ export interface Transaction {
   created_at: string
 }
 
+export interface OrderPayment {
+  id: string
+  shopify_order_number: string
+  type: 'payment' | 'refund' | 'discount' | 'adjustment'
+  amount: number
+  method: string | null
+  reference: string | null
+  notes: string | null
+  recorded_by: string | null
+  created_at: string
+}
+
+export const PAYMENT_METHODS = [
+  { value: 'revolut', label: 'Revolut' },
+  { value: 'wise', label: 'Wise' },
+  { value: 'stripe', label: 'Stripe' },
+  { value: 'card', label: 'Card' },
+  { value: 'qr', label: 'QR Payment' },
+  { value: 'cot_cash', label: 'COT Cash' },
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'other', label: 'Other' },
+] as const
+
 export interface Provider {
   id: string
   provider_id: string
@@ -127,6 +150,7 @@ export const ROLE_PERMISSIONS = {
     canViewAllProviders: true,
     canManageBlocks: true,
     canManageProviders: true,
+    canManagePayments: true,
   },
   manager: {
     canViewDashboard: true,
@@ -142,6 +166,7 @@ export const ROLE_PERMISSIONS = {
     canViewAllProviders: true,
     canManageBlocks: true,
     canManageProviders: true,
+    canManagePayments: true,
   },
   staff: {
     canViewDashboard: true,
@@ -157,6 +182,7 @@ export const ROLE_PERMISSIONS = {
     canViewAllProviders: false,
     canManageBlocks: false,
     canManageProviders: false,
+    canManagePayments: false,
   },
   provider: {
     canViewDashboard: true,
@@ -172,5 +198,6 @@ export const ROLE_PERMISSIONS = {
     canViewAllProviders: false,
     canManageBlocks: false,
     canManageProviders: false,
+    canManagePayments: false,
   },
 }
